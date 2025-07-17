@@ -86,6 +86,7 @@ export const stringifyJson = (data: TValue, option?: JsonStringifyOption) => {
     const stacks: string[] = [];
     option = option ?? {};
     option.indent = Math.max(option.indent ?? 4, 0);
+    option.precision = option.precision ?? 10;
     const buffer = new StringBuffer(option.indent);
     const ctx: StringifyContext = {
         format: "json",
@@ -200,6 +201,7 @@ export const stringifyLua = (data: TValue, option?: LuaStringifyOption) => {
     const stacks: string[] = [];
     option = option ?? {};
     option.indent = Math.max(option.indent ?? 4, 0);
+    option.precision = option.precision ?? 10;
     const buffer = new StringBuffer(option.indent);
     const ctx: StringifyContext = {
         format: "lua",
@@ -332,6 +334,7 @@ export const stringifyTs = (data: TValue, option?: TsStringifyOption) => {
     const stacks: string[] = [];
     option = option ?? {};
     option.indent = Math.max(option.indent ?? 4, 0);
+    option.precision = option.precision ?? 10;
     const buffer = new StringBuffer(option.indent);
     const enumBuffer = new StringBuffer(option.indent);
     const ctx: StringifyContext = {

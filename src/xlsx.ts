@@ -256,8 +256,8 @@ const parseProcessor = (str: string) => {
         .filter((p) => p.name);
 };
 
-const parseChecker = (path: string, refer: string, str: string) => {
-    if (str === "x") {
+const parseChecker = (path: string, refer: string, index: number, str: string) => {
+    if (str === "x" || (index === 0 && str.startsWith("!!"))) {
         return [];
     }
     if (str.trim() === "") {
@@ -448,7 +448,7 @@ const readHeader = (path: string, data: xlsx.WorkBook) => {
                     name,
                     typename,
                     writers: c > 0 && arr.length ? arr : writerKeys.slice(),
-                    checker: parseChecker(path, parsed[name], c === 0 ? "x" : checker),
+                    checker: parseChecker(path, parsed[name], c, checker),
                     comment,
                     refer: toRef(c, r),
                 });
