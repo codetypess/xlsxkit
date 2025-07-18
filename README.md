@@ -72,7 +72,7 @@ Excel 文件需要按照特定格式组织：
     <td>[0,1,2]</td>
     <td>item#item.id</td>
     <td>task#*.id</td>
-    <td>id=reward#*.id<br />@CheckReward</td>
+    <td>id==reward#*.id<br />@CheckReward</td>
     <td>#level.id</td>
   </tr>
   <tr>

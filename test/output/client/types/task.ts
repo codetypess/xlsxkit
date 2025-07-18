@@ -187,11 +187,11 @@ export interface GeneratedTaskEventsRow {
      */
     readonly desc: string;
     /**
-     * 奖励 (location: H1) (checker: id=item#item.id)
+     * 奖励 (location: H1) (checker: id==item#item.id)
      */
     readonly reward: unknown;
     /**
-     * vip奖励 (location: I1) (checker: id=item#*.id)
+     * vip奖励 (location: I1) (checker: id==item#*.id)
      */
     readonly vip_reward: unknown;
     /**
@@ -219,11 +219,11 @@ export interface GeneratedTaskEventsCol {
      */
     readonly desc: (string)[];
     /**
-     * 奖励 (location: H1) (checker: id=item#item.id)
+     * 奖励 (location: H1) (checker: id==item#item.id)
      */
     readonly reward: (unknown)[];
     /**
-     * vip奖励 (location: I1) (checker: id=item#*.id)
+     * vip奖励 (location: I1) (checker: id==item#*.id)
      */
     readonly vip_reward: (unknown)[];
     /**

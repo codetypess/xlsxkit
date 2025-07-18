@@ -1,4 +1,4 @@
-import { CheckerParser, createColumnIndexer, error, get, TCell } from "./xlsx";
+import { assert, CheckerParser, createColumnIndexer, error, get, RowFilter, TCell } from "./xlsx";
 
 export const SizeCheckerParser: CheckerParser = (arg) => {
     const length = Number(arg);
@@ -47,8 +47,45 @@ export const RangeCheckerParser: CheckerParser = (arg) => {
     };
 };
 
-export const IndexCheckerParser: CheckerParser = (file, sheetName, key, idx) => {
-    const indexer = createColumnIndexer(file, sheetName, key);
+type ValueQuery = {
+    readonly key: string;
+    readonly filter: readonly RowFilter[];
+};
+
+const parseQuery = (query?: string): ValueQuery => {
+    if (!query) {
+        return { key: "", filter: [] };
+    }
+    const mainKey = query.match(/^\w+/)?.[0] ?? "";
+    const filter = Array.from(query.matchAll(/([^=&]+)=([^=&]+)/g)).map(([_, key, value]) => {
+        key = key.trim();
+        value = value.trim();
+        const num = Number(value);
+        return { key: key, value: isNaN(num) ? value : num };
+    });
+    return { key: mainKey, filter };
+};
+
+export const IndexCheckerParser: CheckerParser = (file, sheetName, rowQuery, columnQuery) => {
+    const queryColumn = parseQuery(columnQuery);
+    const queryRow = parseQuery(rowQuery);
+
+    assert(!!queryColumn.key, `Invalid key: '${columnQuery}'`);
+
+    const indexer = createColumnIndexer(file, sheetName, queryColumn.key);
+
+    const check = (value: unknown) => {
+        if (queryColumn.filter.length) {
+            for (const row of indexer.filter(queryColumn.filter)) {
+                if (row[queryColumn.key]?.v === value) {
+                    return true;
+                }
+            }
+            return false;
+        } else {
+            return indexer.has(value);
+        }
+    };
 
     return (cell, row, field, errors) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,8 +93,19 @@ export const IndexCheckerParser: CheckerParser = (file, sheetName, key, idx) => 
         if (value === null || value === undefined) {
             error(`Invalid value at ${cell.r} in ${field.path}#${field.sheet}`);
         }
+
+        if (queryRow.filter.length > 0) {
+            // skip cell if not match any filter
+            for (const { key, value } of queryRow.filter) {
+                const cell = row[key] as TCell | undefined;
+                if (!cell || cell.v !== value) {
+                    return true;
+                }
+            }
+        }
+
         if (typeof value !== "object") {
-            return indexer.has(value);
+            return check(value);
         } else if (Array.isArray(value)) {
             /**
              * [value, value, ...]
@@ -65,11 +113,11 @@ export const IndexCheckerParser: CheckerParser = (file, sheetName, key, idx) => 
              */
             let found = 0;
             for (const item of value) {
-                if (!idx) {
-                    if (indexer.has(item)) {
+                if (!queryRow.key) {
+                    if (check(item)) {
                         found++;
                     }
-                } else if (typeof item === "object" && indexer.has(item[idx])) {
+                } else if (typeof item === "object" && check(item[queryRow.key])) {
                     found++;
                 }
             }
@@ -78,7 +126,7 @@ export const IndexCheckerParser: CheckerParser = (file, sheetName, key, idx) => 
             /**
              * {idx: value}
              */
-            return typeof value === "object" && indexer.has(value[idx]);
+            return typeof value === "object" && check(value[queryRow.key]);
         }
     };
 };

@@ -267,11 +267,11 @@ export interface TaskEvents {
      */
     args: { v:unknown };
     /**
-     * 奖励 (location: H1) (checker: id=item#item.id) (writer: client|server)
+     * 奖励 (location: H1) (checker: id==item#item.id) (writer: client|server)
      */
     reward: { v:unknown };
     /**
-     * vip奖励 (location: I1) (checker: id=item#*.id) (writer: client|server)
+     * vip奖励 (location: I1) (checker: id==item#*.id) (writer: client|server)
      */
     vip_reward: { v:unknown };
     /**

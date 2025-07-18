@@ -36,7 +36,7 @@ export type Tag = {
     /** row index */
     ["!index"]?: number;
     /** row data */
-    ["!row"]?: TObject;
+    ["!row"]?: TRow;
     /** row key */
     ["!key"]?: TCell;
 };
@@ -382,9 +382,9 @@ const parseChecker = (path: string, refer: string, index: number, str: string) =
                  * task#main.id
                  * #main.id
                  */
-                const [, idx = "", file = "", sheet = "", key = ""] =
-                    s.match(/^(?:\[?(\w+)\]?=)?([^=]*)#([^.]+)\.(\w+)$/) ?? [];
-                if (!sheet || !key) {
+                const [, row = "", file = "", sheet = "", column = ""] =
+                    s.match(/^(?:\[?(.+)\]?==)?([^=]*)#([^.]+)\.([^.]+)$/) ?? [];
+                if (!sheet || !column) {
                     error(`Invalid index checker at ${refer}: '${s}'`);
                 }
                 const parser = checkerParsers[INDEX_CHECKER];
@@ -392,7 +392,7 @@ const parseChecker = (path: string, refer: string, index: number, str: string) =
                     name: INDEX_CHECKER,
                     force,
                     def: s,
-                    exec: parser(file || path, sheet, key, idx),
+                    exec: parser(file || path, sheet, row, column),
                 };
             } else if (s !== "x") {
                 /**
@@ -502,7 +502,7 @@ const readHeader = (path: string, data: xlsx.WorkBook) => {
                 if (parsed[name]) {
                     error(`Duplicate field name: '${name}' at ${toRef(c, r)}`);
                 }
-                parsed[name] = toRef(c, r);
+                parsed[name] = `${sheetName}#${toRef(c, r)}`;
                 sheet.fields.push({
                     path,
                     sheet: sheetName,
@@ -560,7 +560,7 @@ const readBody = (path: string, data: xlsx.WorkBook) => {
                     cell.v = r - start + 1;
                 }
                 cell["!field"] = field;
-                cell["!row"] = row;
+                cell["!row"] = row as TRow;
                 cell["!writer"] = field.writers;
                 row[field.name] = cell;
                 if (field.index === 0) {
@@ -777,9 +777,12 @@ export const getColumn = (path: string, sheet: string, field: string) => {
     });
 };
 
+export type RowFilter = { readonly key: string; readonly value: string | number };
+
 export type ColumnIndexer<T> = {
     has: (value: unknown) => boolean;
     get: (value: unknown) => T | null;
+    filter: (cond: readonly RowFilter[]) => T[];
 };
 
 export const createColumnIndexer = <T = TRow>(
@@ -790,46 +793,63 @@ export const createColumnIndexer = <T = TRow>(
 ): ColumnIndexer<T> => {
     let workbook: Workbook | null = null;
     const cache: Map<unknown, TCell | null> = new Map();
+    const filterResults: Map<unknown, T[]> = new Map();
+    const rows: TRow[] = [];
 
     path = path.replace(/\.xlsx$/, "") + ".xlsx";
 
-    const hasValue = (value: unknown): boolean => {
-        if (cache.has(value)) {
-            return !!cache.get(value);
-        }
-        workbook ??= get(path);
-        for (const sheet of Object.values(workbook.sheets)) {
-            if (sheet.name === sheetName || sheetName === "*") {
-                getColumn(path, sheet.name, field).forEach((cell) => {
-                    if (cell && (!filter || filter(cell["!row"] as T))) {
-                        cache.set(cell.v, isNull(cell) ? null : cell);
-                    }
-                });
-                if (cache.has(value)) {
-                    return !!cache.get(value);
+    const init = () => {
+        if (!workbook) {
+            workbook = get(path);
+            for (const sheet of Object.values(workbook.sheets)) {
+                if (sheet.name === sheetName || sheetName === "*") {
+                    getColumn(path, sheet.name, field).forEach((cell) => {
+                        if (cell && (!filter || filter(cell["!row"] as T))) {
+                            rows.push(cell["!row"] as TRow);
+                            cache.set(cell.v, isNull(cell) ? null : cell);
+                        }
+                    });
                 }
             }
         }
-        cache.set(value, null);
-        return false;
+    };
+
+    const hasValue = (value: unknown): boolean => {
+        init();
+        return cache.has(value);
     };
 
     const getRow = (value: unknown) => {
-        if (hasValue(value)) {
-            return cache.get(value)?.["!row"] as T | null;
+        init();
+        return (cache.get(value)?.["!row"] as T | null) ?? null;
+    };
+
+    const filterRows = (cond: readonly RowFilter[]) => {
+        init();
+        let result = filterResults.get(cond);
+        if (!result) {
+            result = [];
+            filterResults.set(cond, result);
+            for (const row of rows) {
+                if (cond.every((c) => row[c.key]?.v === c.value)) {
+                    result.push(row as T);
+                }
+            }
         }
-        return null;
+        return result;
     };
 
     return {
         has: hasValue,
         get: getRow,
+        filter: filterRows,
     };
 };
 
 export interface RowIndexer<T> {
     has: (value: string | number) => boolean;
     get: (value: string | number) => T | null;
+    filter: (cond: readonly RowFilter[]) => T[];
 }
 
 export const createRowIndexer = <T = TObject>(
@@ -838,41 +858,57 @@ export const createRowIndexer = <T = TObject>(
     filter?: (row: T) => boolean
 ): RowIndexer<T> => {
     let workbook: Workbook | null = null;
-    const cache: Map<unknown, T | null> = new Map();
+    const cache: Record<string | number, T | null> = {};
+    const filterResults: Map<unknown, T[]> = new Map();
+    const rows: TRow[] = [];
 
     path = path.replace(/\.xlsx$/, "") + ".xlsx";
 
-    const hasValue = (value: string | number): boolean => {
-        if (cache.has(value)) {
-            return !!cache.get(value);
-        }
-        workbook ??= get(path);
-        for (const sheet of Object.values(workbook.sheets)) {
-            if (sheet.name === sheetName || sheetName === "*") {
-                for (const row of values<TRow>(sheet.data)) {
-                    if (!filter || filter(row as T)) {
-                        assert(!!row["!key"], "key not found");
-                        cache.set(row["!key"]?.v, row as T);
+    const init = () => {
+        if (!workbook) {
+            workbook = get(path);
+            for (const sheet of Object.values(workbook.sheets)) {
+                if (sheet.name === sheetName || sheetName === "*") {
+                    for (const key of keys(sheet.data)) {
+                        const row = checkType<TRow>(sheet.data[key], Type.Row);
+                        if (!filter || filter(row as T)) {
+                            assert(!!row["!key"], "key not found");
+                            cache[key] = row as T;
+                        }
                     }
-                }
-                if (cache.has(value)) {
-                    return !!cache.get(value);
                 }
             }
         }
-        cache.set(value, null);
-        return false;
+    };
+
+    const hasValue = (value: string | number): boolean => {
+        init();
+        return !!cache[value];
     };
 
     const getRow = (value: string | number) => {
-        if (hasValue(value)) {
-            return cache.get(value) as T;
+        init();
+        return cache[value] ?? null;
+    };
+
+    const filterRows = (cond: readonly RowFilter[]) => {
+        init();
+        let result = filterResults.get(cond);
+        if (!result) {
+            result = [];
+            filterResults.set(cond, result);
+            for (const row of rows) {
+                if (cond.every((c) => row[c.key]?.v === c.value)) {
+                    result.push(row as T);
+                }
+            }
         }
-        return null;
+        return result;
     };
 
     return {
         has: hasValue,
         get: getRow,
+        filter: filterRows,
     };
 };
