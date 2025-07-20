@@ -327,7 +327,7 @@ export interface GeneratedTaskMainRow {
      */
     readonly id: number;
     /**
-     * 显示排序 (location: C1) (checker: value > 0 && value < 20)
+     * 显示排序 (location: C1) (checker: $ > 0 && $ < 20)
      */
     readonly sort: number;
     /**
@@ -383,7 +383,7 @@ export interface GeneratedTaskMainCol {
      */
     readonly id: (number)[];
     /**
-     * 显示排序 (location: C1) (checker: value > 0 && value < 20)
+     * 显示排序 (location: C1) (checker: $ > 0 && $ < 20)
      */
     readonly sort: (number)[];
     /**

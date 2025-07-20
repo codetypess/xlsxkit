@@ -15,13 +15,9 @@ export const SizeCheckerParser: CheckerParser = (arg) => {
 };
 
 export const ExprCheckerParser: CheckerParser = (arg) => {
-    const expr = new Function("value", "return " + arg);
+    const expr = new Function("$", "return " + arg);
     return (cell, row, field, errors) => {
-        try {
-            return expr(cell.v);
-        } catch (e) {
-            error(String(e));
-        }
+        return expr(cell.v);
     };
 };
 

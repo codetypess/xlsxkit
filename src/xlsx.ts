@@ -640,12 +640,12 @@ const applyChecker = () => {
         for (const sheetName in workbook.sheets) {
             const sheet = workbook.sheets[sheetName];
             for (const field of sheet.fields) {
-                using _ = doing(`Checking field '${field.name}' in '${file}#${sheetName}'`);
+                const msg = `'${field.name}' at ${field.refer} in '${file}#${sheetName}'`;
+                using _ = doing(`Checking ${msg}`);
                 try {
                     invokeChecker(sheet, field, errors);
                 } catch (e) {
-                    console.error(e);
-                    error(`Error checking field '${field.name}' in '${file}#${sheetName}'`);
+                    error((e as Error).stack ?? String(e));
                 }
             }
         }

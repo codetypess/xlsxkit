@@ -335,7 +335,7 @@ export interface TaskMain {
      */
     id: { v:number };
     /**
-     * 显示排序 (location: C1) (checker: value > 0 && value < 20) (writer: client|server)
+     * 显示排序 (location: C1) (checker: $ > 0 && $ < 20) (writer: client|server)
      */
     sort: { v:number };
     /**
