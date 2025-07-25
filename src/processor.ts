@@ -11,7 +11,6 @@ import {
     assert,
     copyOf,
     doing,
-    error,
     Processor,
     RealType,
     registerChecker,
@@ -40,7 +39,7 @@ export const mergeSheet = (workbook: Workbook, writer: string, sheetNames?: stri
             for (const k of keys(sheet.data)) {
                 const row = sheet.data[k];
                 if (result[k]) {
-                    error(`Duplicate key: ${k}`);
+                    throw new Error(`Duplicate key: ${k}`);
                 }
                 result[k] = row;
             }
@@ -66,7 +65,7 @@ export const StringifyProcessor: Processor = (
 ) => {
     const rule = rules[ruleName ?? "simple"];
     if (!rule) {
-        error(`Stringify rule not found: ${ruleName}`);
+        throw new Error(`Stringify rule not found: ${ruleName}`);
     }
     for (const k in writers) {
         const filtered = copyOf(workbook, k);

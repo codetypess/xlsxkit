@@ -137,12 +137,6 @@ export function assert(condition: boolean, msg: string): asserts condition {
     }
 }
 
-export function debugAssert(condition: boolean, msg?: string): asserts condition {
-    if (!condition && debug) {
-        error(msg ?? "Debug assertion failed");
-    }
-}
-
 export const typeOf = (value: TValue) => {
     if (value && typeof value === "object" && value["!type"]) {
         return value["!type"];

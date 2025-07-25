@@ -1,6 +1,6 @@
 import { ColumnIndexer, RowFilter } from "./indexer";
 import { keys } from "./util";
-import { CheckerParser, error, get, TCell, TObject, TValue } from "./xlsx";
+import { CheckerParser, get, TCell, TObject, TValue } from "./xlsx";
 
 export const SizeCheckerParser: CheckerParser = (arg) => {
     const length = Number(arg);
@@ -116,17 +116,19 @@ const parseResolver = (str: string) => {
 };
 
 const parseFilter = (filter: string) => {
-    const arr: RowFilter[] = [];
-    while (filter.length) {
-        const [str, key, value] = filter.match(/(\w+)=(\w+)/) ?? [];
-        if (str) {
-            filter = filter.slice(str.length);
-            arr.push({ key, value });
-        } else {
-            throw new Error(`Invalid filter: ${filter}`);
-        }
-    }
-    return arr;
+    return filter
+        .replaceAll(" ", "")
+        .split("&")
+        .filter((s) => s.length)
+        .map((s) => {
+            const [, key, value] = s.match(/(\w+)=(\w+)/) ?? [];
+            const num = Number(value);
+            if (key && value) {
+                return { key, value: isNaN(num) ? value : num };
+            } else {
+                throw new Error(`Invalid filter: ${filter}`);
+            }
+        }) as readonly RowFilter[];
 };
 
 const parseAst = (rowKey: string, colKey: string, rowFilter: string, colFilter: string) => {
@@ -156,7 +158,7 @@ export const IndexCheckerParser: CheckerParser = (
 
     return (cell, row, field, errors) => {
         if (cell.v === null || cell.v === undefined) {
-            error(`Invalid value at ${cell.r} in ${field.path}#${field.sheet}`);
+            throw new Error(`Invalid value at ${cell.r} in ${field.path}#${field.sheet}`);
         }
 
         if (ast.value.filter.length > 0) {
