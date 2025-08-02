@@ -60,7 +60,8 @@ export const genTsTypedef = (path: string, writer: string, maker?: ClassNameMake
         buffer.writeLine(`// file: ${path}`);
         buffer.writeLine(`export interface ${className} {`);
         buffer.indent();
-        for (const field of typedefs[sheetName]) {
+        const fields = typedefs[sheetName].filter((v) => v.writers.includes(writer));
+        for (const field of fields) {
             const checker = field.checker.map((v) => v.def).join(";");
             const comment = field.comment.replaceAll(/[\r\n]+/g, " ");
             buffer.writeLine(`/**`);
@@ -96,7 +97,8 @@ export const genLuaTypedef = (path: string, writer: string, maker?: ClassNameMak
         const className = maker(toPascalCase(`${name}_${sheetName}`));
         buffer.writeLine(`---file: ${path}`);
         buffer.writeLine(`---@class ${className}`);
-        for (const field of typedefs[sheetName]) {
+        const fields = typedefs[sheetName].filter((v) => v.writers.includes(writer));
+        for (const field of fields) {
             const optional = field.typename.endsWith("?") ? "?" : "";
             let typename = field.typename.replaceAll("?", "").replaceAll("[]", "");
             typename = convertors[typename].realtype ?? typename;

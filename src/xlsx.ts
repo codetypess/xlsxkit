@@ -492,14 +492,19 @@ const readHeader = (path: string, data: xlsx.WorkBook) => {
             },
             {} as Record<string, number>
         );
+
     const workbook: Workbook = {
         path: path,
         sheets: {},
         typedefs: {},
     };
     files[path] = workbook;
+
     const writerKeys = Object.keys(writers);
+    writerKeys.forEach((v) => (workbook.typedefs[v] = {}));
+
     let firstSheet: Sheet | null = null;
+
     for (const sheetName of data.SheetNames) {
         using _ = doing(`Reading sheet '${sheetName}' in '${path}'`);
         const sheetData = data.Sheets[sheetName];
@@ -513,6 +518,7 @@ const readHeader = (path: string, data: xlsx.WorkBook) => {
             fields: [],
             data: {},
         };
+        writerKeys.forEach((v) => (workbook.typedefs[v][sheetName] = sheet.fields));
 
         sheet.data["!type"] = Type.Sheet;
         sheet.data["!name"] = sheetName;
