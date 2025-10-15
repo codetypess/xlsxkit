@@ -1,5 +1,5 @@
-// AUTO GENERATED, DO NOT MODIFY!
-// file: test/res/task.xlsx
+// AUTO GENERATED DO NOT MODIFY!
+// MERGED FROM build/client/types/task.ts AND test/output/client/types/task.ts
 
 import {
     Items,
@@ -46,7 +46,7 @@ export interface GeneratedTaskBranchRow {
     /**
      * 参数 (location: K1) (checker: x)
      */
-    readonly args: unknown;
+    readonly args: Record<string, number | string>; // override
     /**
      * 奖励 (location: M1) (checker: $[*].id==item#item.id)
      */
@@ -124,7 +124,7 @@ export interface GeneratedTaskExchangeRow {
     /**
      * 参数 (location: I1) (checker: x)
      */
-    readonly args: unknown;
+    readonly args: Record<string, number | string>; // override
     /**
      * 奖励 (location: J1) (checker: @ItemArrayChecker)
      */
@@ -136,7 +136,7 @@ export interface GeneratedTaskExchangeRow {
     /**
      * 任务npc和对话 (location: L1) (checker: x)
      */
-    readonly custom?: unknown;
+    readonly custom?: Record<string, number | string>; // override
 }
 
 export interface GeneratedTaskMainRow {
@@ -175,7 +175,7 @@ export interface GeneratedTaskMainRow {
     /**
      * 参数 (location: J1) (checker: @TaskArgsChecker)
      */
-    readonly args: unknown;
+    readonly args: Record<string, number | string>; // override
     /**
      * 奖励 (location: K1) (checker: @ItemArrayChecker)
      */
@@ -187,7 +187,7 @@ export interface GeneratedTaskMainRow {
     /**
      *  (location: M1) (checker: x)
      */
-    readonly custom?: unknown;
+    readonly custom?: Record<string, number | string>; // override
     /**
      * 完成后自动提交 (location: N1) (checker: [1])
      */
@@ -219,5 +219,13 @@ export interface GeneratedTaskWeeklyRow {
      * 任务icon (location: I1) (checker: x)
      */
     readonly icon: string;
+}
+
+export interface GeneratedTaskTable {
+    main: Record<number | string, GeneratedTaskMainRow>;
+    branch: Record<number | string, GeneratedTaskBranchRow>;
+    events: Record<number | string, GeneratedTaskEventsRow>;
+    exchange: Record<number | string, GeneratedTaskExchangeRow>;
+    weekly: Record<number | string, GeneratedTaskWeeklyRow>;
 }
 

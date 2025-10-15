@@ -2,7 +2,9 @@
   "type": "module",
   "dependencies": {
     "json5": "^2.2.3",
-    "xlsx": "^0.18.5"
+    "ts-to-zod": "^5.0.1",
+    "xlsx": "^0.18.5",
+    "zod": "^4.1.12"
   },
   "scripts": {
     "postinstall": "npm i -g tsx",

@@ -119,7 +119,8 @@ export const values = <T>(
 export const toPascalCase = (str: string): string => {
     return str
         .replace(/^_+/, "")
-        .replace(/_([a-zA-Z])/g, (_, letter) => letter.toUpperCase())
+        .replace(/\./g, "_")
+        .replace(/_+([a-zA-Z])/g, (_, letter) => letter.toUpperCase())
         .replace(/^[a-zA-Z]/, (match) => match.toUpperCase());
 };
 

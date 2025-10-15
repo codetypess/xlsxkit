@@ -73,16 +73,27 @@ export const StringifyProcessor: Processor = async (
 export const DefineProcessor: Processor = async (
     workbook: Workbook,
     sheet: Sheet,
-    action?: string
+    name?: string
 ) => {
     const data = defineSheet(sheet);
+    if (name) {
+        data["!name"] = name;
+    }
     write(workbook.writer, workbook.path, data, "define");
     sheet.data = {};
     sheet.ignore = true;
 };
 
-export const ConfigProcessor: Processor = async (workbook: Workbook, sheet: Sheet) => {
-    sheet.data = configSheet(sheet);
+export const ConfigProcessor: Processor = async (
+    workbook: Workbook,
+    sheet: Sheet,
+    name?: string
+) => {
+    const data = configSheet(sheet);
+    if (name) {
+        data["!name"] = name;
+    }
+    sheet.data = data;
     sheet.ignore = true;
 };
 

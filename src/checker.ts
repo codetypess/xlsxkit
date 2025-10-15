@@ -116,7 +116,10 @@ const parseResolver = (expr: IndexerFilterExpr) => {
         }
         for (let i = start; i < arr.length; i++) {
             const v = arr[i];
-            if (!(typeof v === "string" || typeof v === "number") || !walker(v)) {
+            if (!(typeof v === "string" || typeof v === "number")) {
+                errors.push(`data type error: data=${v} type=${typeof v}`);
+                return false;
+            } else if (!walker(v)) {
                 errors.push(`${v}`);
                 return false;
             }
@@ -236,11 +239,17 @@ export const IndexCheckerParser: CheckerParser = (
     };
 };
 
-export const SheetCheckerParser: CheckerParser = (file) => {
+export const SheetCheckerParser: CheckerParser = (rowFile, rowSheet, rowKey, rowFilter, file) => {
+    const ast = parseIndexerAst(
+        { file: rowFile, sheet: rowSheet, key: rowKey, filter: rowFilter },
+        { file: file, sheet: "", key: "", filter: "" }
+    );
     const path = file.replace(/\.xlsx$/, "") + ".xlsx";
     const workbook = getWorkbook(path);
     return (cell, row, field, errors) => {
-        const sheet = workbook.sheets[cell.v as string];
-        return sheet !== undefined;
+        return ast.value.resolve(cell.v, errors, (value) => {
+            const sheet = workbook.sheets[value as string];
+            return sheet !== undefined;
+        });
     };
 };

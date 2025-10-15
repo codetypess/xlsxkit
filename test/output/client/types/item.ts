@@ -1,11 +1,13 @@
-// AUTO GENERATED, DO NOT MODIFY!
-// file: test/res/item.xlsx
+// AUTO GENERATED DO NOT MODIFY!
+// MERGED FROM build/client/types/item.ts AND test/output/client/types/item.ts
 
 import {
     BagType,
     ItemType,
     QualityType,
 } from "../define/index";
+
+type ItemArgs = Record<string, number> | number[][];
 
 export interface GeneratedItemFollowRow {
     /**
@@ -58,7 +60,7 @@ export interface GeneratedItemItemRow {
     /**
      * 参数 (location: I1) (checker: x)
      */
-    readonly args?: unknown;
+    readonly args?: ItemArgs; // override
     /**
      * 背包是否隐藏 (location: J1) (checker: x)
      */
@@ -151,5 +153,14 @@ export interface GeneratedItemMapObjRow {
      * 物品名称 (location: E2) (checker: x)
      */
     readonly name: string;
+}
+
+export interface GeneratedItemTable {
+    item: Record<number | string, GeneratedItemItemRow>;
+    follow: Record<number | string, GeneratedItemFollowRow>;
+    map: Record<number | string, Record<number | string, GeneratedItemMapRow>>;
+    // map_arr: Record<number | string, GeneratedItemMapArrRow>;
+    // map_field: Record<number | string, GeneratedItemMapFieldRow>;
+    // map_obj: Record<number | string, GeneratedItemMapObjRow>;
 }
 

@@ -59,10 +59,10 @@ export type TArray = TValue[] & Tag;
 export type TRow = { [k: string]: TCell } & Tag;
 
 export type Field = {
-    sheet: string;
-    path: string;
     index: number;
     name: string;
+    sheet: string;
+    path: string;
     typename: string;
     realtype?: string;
     ignore: boolean;
@@ -74,6 +74,7 @@ export type Field = {
 
 export type Sheet = {
     name: string;
+    path: string;
     ignore: boolean;
     processors: { name: string; args: string[] }[];
     fields: Field[];
@@ -465,13 +466,14 @@ const parseChecker = (
                  * file#
                  * #
                  */
-                const [, file = ""] = s.match(/^([^#]*)#$/) ?? [];
+                const [, rowKey = "", rowFilter = "", colFile = ""] =
+                    s.match(/^(?:\$([^&]*)?(?:&(.+))?==)?([^#]*)#$/) ?? [];
                 checker = {
                     name: SHEET_CHECKER,
                     force,
                     def: s,
                     refer,
-                    args: [makeFilePath(file || rowFile)],
+                    args: [rowFile, rowSheet, rowKey, rowFilter, makeFilePath(colFile || rowFile)],
                     exec: null!,
                 };
             } else if (s.includes("#")) {
@@ -574,6 +576,7 @@ const readHeader = (path: string, data: xlsx.WorkBook) => {
 
         const sheet: Sheet = {
             name: sheetName,
+            path: path,
             ignore: false,
             processors: [],
             fields: [],
@@ -670,7 +673,7 @@ const readBody = (path: string, data: xlsx.WorkBook) => {
             ? MAX_HEADERS
             : MAX_HEADERS - 1;
         for (let r = start; r < sheetData.length; r++) {
-            const row: TObject = {};
+            const row: TRow = {};
             row["!type"] = Type.Row;
             loop: for (const field of sheet.fields) {
                 const cell: TCell = readCell(sheetData, r, field.index);
@@ -684,7 +687,7 @@ const readBody = (path: string, data: xlsx.WorkBook) => {
                     cell.v = r - start + 1;
                 }
                 cell["!field"] = field;
-                cell["!row"] = row as TRow;
+                cell["!row"] = row;
                 cell["!writer"] = field.writers;
                 row[field.name] = cell;
                 if (field.index === 0) {
@@ -929,6 +932,7 @@ const copyOf = (workbook: Workbook, writer: string, headerOnly: boolean = false)
         if (sheet.fields[0].writers.includes(writer)) {
             const resultSheet: Sheet = {
                 name: sheet.name,
+                path: sheet.path,
                 ignore: sheet.ignore,
                 processors: structuredClone(sheet.processors),
                 fields: structuredClone(sheet.fields).filter((f) => f.writers.includes(writer)),

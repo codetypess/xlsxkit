@@ -1,5 +1,5 @@
 import { RowIndexer } from "./indexer";
-import { values } from "./util";
+import { filename, values } from "./util";
 import {
     Sheet,
     TArray,
@@ -21,7 +21,7 @@ export const defineSheet = (sheet: Sheet) => {
     const config: TObject = {};
     const enumOptions: TObject[] = [];
 
-    config["!name"] = sheet.name;
+    config["!name"] = `${filename(sheet.path)}.${sheet.name}`;
     config["!type"] = Type.Define;
 
     const rows = values<TObject>(sheet.data).map((v) => checkType<TRow>(v, Type.Row));
@@ -114,7 +114,7 @@ export const configSheet = (
     checkType(sheet.data, Type.Sheet);
 
     const result: TObject = {};
-    result["!name"] = sheet.name;
+    result["!name"] = `${filename(sheet.path)}.${sheet.name}`;
     result["!type"] = Type.Config;
     const rows = values<TObject>(sheet.data).map((v) => checkType<TRow>(v, Type.Row));
     for (const row of rows) {

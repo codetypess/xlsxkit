@@ -1,3 +1,6 @@
 node_modules/
 build/
 ~*
+test/output/client/schema
+md5.json
+ts-to-zod.config.cjs

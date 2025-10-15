@@ -14,6 +14,9 @@ import {
 //  - @stringify
 //  - @typedef
 //  - @auto-register
+//  - @post_stringify
+//  - @workbook-indexer
+//  - @validate-json
 export interface ItemDefine {
     /**
      * ### (location: A2) (checker: x) (writer: client|server)
@@ -305,6 +308,9 @@ export interface TaskConf {
 //  - @stringify
 //  - @typedef
 //  - @auto-register
+//  - @post_stringify
+//  - @workbook-indexer
+//  - @validate-json
 export interface TaskDefine {
     /**
      * ### (location: A2) (checker: x) (writer: client|server)
