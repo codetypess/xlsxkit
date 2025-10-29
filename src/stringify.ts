@@ -105,8 +105,10 @@ export const stringifyJson = (data: TValue, option?: JsonStringifyOption) => {
             buffer.writeString(numberToString(value, ctx.precision));
         } else if (typeof value === "boolean") {
             buffer.writeString(value.toString());
-        } else if (value === null || value === undefined) {
+        } else if (value === null) {
             buffer.writeString("null");
+        } else if (value === undefined) {
+            buffer.writeString("undefined");
         } else if (typeof value === "string") {
             buffer.writeString('"');
             buffer.writeString(escape(value));

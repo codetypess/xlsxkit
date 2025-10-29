@@ -1,5 +1,5 @@
 import { RowIndexer } from "./indexer";
-import { filename, values } from "./util";
+import { basename, values } from "./util";
 import {
     Sheet,
     TArray,
@@ -8,6 +8,7 @@ import {
     TRow,
     TValue,
     Type,
+    Workbook,
     assert,
     checkType,
     convertValue,
@@ -15,13 +16,13 @@ import {
     toString,
 } from "./xlsx";
 
-export const defineSheet = (sheet: Sheet) => {
+export const defineSheet = (workbook: Workbook, sheet: Sheet) => {
     checkType(sheet.data, Type.Sheet);
 
     const config: TObject = {};
     const enumOptions: TObject[] = [];
 
-    config["!name"] = `${filename(sheet.path)}.${sheet.name}`;
+    config["!name"] = `${basename(sheet.path)}.${sheet.name}`;
     config["!type"] = Type.Define;
 
     const rows = values<TObject>(sheet.data).map((v) => checkType<TRow>(v, Type.Row));
@@ -105,6 +106,7 @@ export const defineSheet = (sheet: Sheet) => {
 };
 
 export const configSheet = (
+    workbook: Workbook,
     sheet: Sheet,
     nameKey = "key",
     valueKey = "value",
@@ -114,7 +116,7 @@ export const configSheet = (
     checkType(sheet.data, Type.Sheet);
 
     const result: TObject = {};
-    result["!name"] = `${filename(sheet.path)}.${sheet.name}`;
+    result["!name"] = `${basename(sheet.path)}.${sheet.name}`;
     result["!type"] = Type.Config;
     const rows = values<TObject>(sheet.data).map((v) => checkType<TRow>(v, Type.Row));
     for (const row of rows) {
@@ -150,7 +152,7 @@ export const configSheet = (
             }
         }
  */
-export const mapSheet = (sheet: Sheet, value: string, ...keys: string[]) => {
+export const mapSheet = (workbook: Workbook, sheet: Sheet, value: string, ...keys: string[]) => {
     checkType(sheet.data, Type.Sheet);
 
     const queryValue = (() => {
@@ -209,7 +211,12 @@ export const mapSheet = (sheet: Sheet, value: string, ...keys: string[]) => {
     return result;
 };
 
-export const columnSheet = (sheet: Sheet, idxKey: string, ...foldKeys: string[]) => {
+export const columnSheet = (
+    workbook: Workbook,
+    sheet: Sheet,
+    idxKey: string,
+    ...foldKeys: string[]
+) => {
     checkType(sheet.data, Type.Sheet);
 
     const rows = values<TObject>(sheet.data).map((v) => checkType<TRow>(v, Type.Row));
@@ -246,7 +253,7 @@ export const columnSheet = (sheet: Sheet, idxKey: string, ...foldKeys: string[])
     return result;
 };
 
-export const collapseSheet = (sheet: Sheet, ...keys: string[]) => {
+export const collapseSheet = (workbook: Workbook, sheet: Sheet, ...keys: string[]) => {
     checkType(sheet.data, Type.Sheet);
     const result: { [key: string]: TValue } = {};
     const rows = values<TObject>(sheet.data).map((v) => checkType<TRow>(v, Type.Row));
@@ -271,6 +278,7 @@ export const collapseSheet = (sheet: Sheet, ...keys: string[]) => {
 };
 
 export const decltype = <T>(
+    workbook: Workbook,
     path: string,
     sheetName: string,
     typeValue: string,
@@ -278,7 +286,7 @@ export const decltype = <T>(
     fieldKey: string = "key2"
 ) => {
     const types: Record<string, T> = {};
-    const indexer = new RowIndexer<TRow>(path, sheetName);
+    const indexer = new RowIndexer<TRow>(workbook.context, path, sheetName);
     for (const row of indexer.rows) {
         const key1 = row[typeKey];
         const key2 = row[fieldKey];

@@ -17,6 +17,7 @@ import {
 //  - @post_stringify
 //  - @workbook-indexer
 //  - @validate-json
+//  - @workbook-typedef
 export interface ItemDefineRow {
     /**
      * ### (location: A2) (checker: x) (writer: client|server)
@@ -311,6 +312,7 @@ export interface TaskConfRow {
 //  - @post_stringify
 //  - @workbook-indexer
 //  - @validate-json
+//  - @workbook-typedef
 export interface TaskDefineRow {
     /**
      * ### (location: A2) (checker: x) (writer: client|server)

@@ -19,27 +19,22 @@ import {
     TRow,
     TValue,
     Workbook,
-    writers,
+    write,
 } from "./xlsx";
 
-export type StringifyRule = (workbook: Workbook, writer: string) => TObject;
+export type StringifyRule = (workbook: Workbook) => TObject;
 const rules: Record<string, StringifyRule> = {};
+const NONE = {};
 
 export const registerStringify = (name: string, rule: StringifyRule) => {
     assert(!rules[name], `Stringify rule '${name}' already registered`);
     rules[name] = rule;
 };
 
-const write = (writer: string, path: string, data: TObject, processor: string) => {
-    assert(!!writers[writer], `Writer not found: ${writer}`);
-    writers[writer](path, data, processor);
-};
-
-export const mergeSheet = (workbook: Workbook, writer: string, sheetNames?: string[]) => {
+export const mergeSheet = (workbook: Workbook, sheetNames?: string[]) => {
     const result: TObject = {};
-    for (const sheetName in workbook.sheets) {
-        if (!sheetNames || sheetNames.includes(sheetName)) {
-            const sheet = workbook.sheets[sheetName];
+    for (const sheet of workbook.sheets) {
+        if (!sheetNames || sheetNames.includes(sheet.name)) {
             for (const k of keys(sheet.data)) {
                 const row = sheet.data[k];
                 if (result[k]) {
@@ -52,14 +47,18 @@ export const mergeSheet = (workbook: Workbook, writer: string, sheetNames?: stri
     return result;
 };
 
-export const simpleSheet = (workbook: Workbook, writer: string, sheetNames?: string[]) => {
+export const simpleSheet = (workbook: Workbook, sheetNames?: string[]) => {
     const result: TObject = {};
-    for (const sheetName in workbook.sheets) {
-        if (!sheetNames || sheetNames.includes(sheetName)) {
-            result[sheetName] = workbook.sheets[sheetName].data;
+    for (const sheet of workbook.sheets) {
+        if (!sheetNames || sheetNames.includes(sheet.name)) {
+            result[sheet.name] = sheet.data;
         }
     }
     return result;
+};
+
+export const noneSheet = () => {
+    return NONE;
 };
 
 export const StringifyProcessor: Processor = async (
@@ -71,8 +70,10 @@ export const StringifyProcessor: Processor = async (
     if (!rule) {
         throw new Error(`Stringify rule not found: ${ruleName}`);
     }
-    const data = rule(workbook, workbook.writer);
-    write(workbook.writer, workbook.path, data, "stringify");
+    const data = rule(workbook);
+    if (data !== NONE) {
+        write(workbook, "stringify", workbook.path, data);
+    }
 };
 
 export const DefineProcessor: Processor = async (
@@ -80,11 +81,11 @@ export const DefineProcessor: Processor = async (
     sheet: Sheet,
     name?: string
 ) => {
-    const data = defineSheet(sheet);
+    const data = defineSheet(workbook, sheet);
     if (name) {
         data["!name"] = name;
     }
-    write(workbook.writer, workbook.path, data, "define");
+    write(workbook, "define", workbook.path, data);
     sheet.data = {};
     sheet.ignore = true;
 };
@@ -94,7 +95,7 @@ export const ConfigProcessor: Processor = async (
     sheet: Sheet,
     name?: string
 ) => {
-    const data = configSheet(sheet);
+    const data = configSheet(workbook, sheet);
     if (name) {
         data["!name"] = name;
     }
@@ -108,7 +109,7 @@ export const MapProcessor: Processor = async (
     value: string,
     ...ks: string[]
 ) => {
-    sheet.data = mapSheet(sheet, value, ...ks);
+    sheet.data = mapSheet(workbook, sheet, value, ...ks);
 };
 
 export const CollapseProcessor: Processor = async (
@@ -116,7 +117,7 @@ export const CollapseProcessor: Processor = async (
     sheet: Sheet,
     ...ks: string[]
 ) => {
-    sheet.data = collapseSheet(sheet, ...ks);
+    sheet.data = collapseSheet(workbook, sheet, ...ks);
 };
 
 export const ColumnProcessor: Processor = async (
@@ -125,16 +126,15 @@ export const ColumnProcessor: Processor = async (
     idxKey: string,
     ...foldKeys: string[]
 ) => {
-    sheet.data = columnSheet(sheet, idxKey, ...foldKeys);
+    sheet.data = columnSheet(workbook, sheet, idxKey, ...foldKeys);
 };
 
 export const TypedefProcessor: Processor = async (workbook: Workbook, sheet: Sheet) => {
-    write(workbook.writer, workbook.path, workbook as unknown as TObject, "typedef");
+    write(workbook, "typedef", workbook.path, workbook as unknown as TObject);
 };
 
 export const AutoRegisterProcessor: Processor = async (workbook: Workbook) => {
-    for (const sheetName in workbook.sheets) {
-        const sheet = workbook.sheets[sheetName];
+    for (const sheet of workbook.sheets) {
         if (!sheet.processors.find((p) => p.name === "define")) {
             continue;
         }
@@ -148,7 +148,12 @@ export const AutoRegisterProcessor: Processor = async (workbook: Workbook) => {
                 using _ = doing(
                     `Registering type '${enumName}' in '${workbook.path}#${sheet.name}'`
                 );
-                const typeKeys: Record<string, TValue> = decltype(workbook.path, sheet.name, key1);
+                const typeKeys: Record<string, TValue> = decltype(
+                    workbook,
+                    workbook.path,
+                    sheet.name,
+                    key1
+                );
                 const typeValues: Record<string, string> = keys(typeKeys).reduce(
                     (acc, k) => {
                         acc[String(typeKeys[k])] = k;

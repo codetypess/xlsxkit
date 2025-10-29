@@ -6,22 +6,17 @@ import "./init";
 import "./processor/gen-indexer.processor";
 import "./processor/post_stringify.processor";
 import "./processor/validate.processor";
+import "./processor/workbook-typedef.processor";
+import { makeTypename } from "./processor/workbook-typedef.processor";
 import "./rule/task.rule";
 
 const t = Date.now();
 
 const OUTPUT_DIR = "test/output";
 
-const makeTypename = (name: string) => {
-    if (name === "items") {
-        return "Items";
-    }
-    return name;
-};
-
-xlsx.registerWriter("client", (file, data, processor) => {
+xlsx.registerWriter("client", (workbook, processor, path, data) => {
     if (processor === "define") {
-        const name = xlsx.toPascalCase(data["!name"] ?? xlsx.filename(file));
+        const name = xlsx.toPascalCase(data["!name"] ?? xlsx.basename(path));
         const marshal = `export const ${name} = `;
         xlsx.writeFile(
             `${OUTPUT_DIR}/client/define/${name}.ts`,
@@ -29,22 +24,22 @@ xlsx.registerWriter("client", (file, data, processor) => {
         );
         defines.add(name);
     } else if (processor === "stringify") {
-        const name = xlsx.filename(file);
+        const name = xlsx.basename(path);
         xlsx.writeFile(
             `${OUTPUT_DIR}/client/data/${name}.json`,
             xlsx.stringifyJson(data, { indent: 2 })
         );
     } else if (processor === "typedef") {
-        const name = xlsx.filename(file);
-        const content = xlsx.genTsTypedef(file, "client", (typename) => {
+        const name = xlsx.basename(path);
+        const content = xlsx.genTsTypedef(workbook, (typename) => {
             return {
                 type: makeTypename(typename),
                 path: "../define/index",
             };
         });
         xlsx.writeFile(`build/client/types/${name}.ts`, content);
-        const path = `${OUTPUT_DIR}/client/types/${name}.ts`;
-        if (!fs.existsSync(path)) {
+        const typePath = `${OUTPUT_DIR}/client/types/${name}.ts`;
+        if (!fs.existsSync(typePath)) {
             xlsx.writeFile(`${OUTPUT_DIR}/client/types/${name}.ts`, content);
         }
         types.add(name);
@@ -53,24 +48,24 @@ xlsx.registerWriter("client", (file, data, processor) => {
     }
 });
 
-xlsx.registerWriter("server", (file, data, processor) => {
+xlsx.registerWriter("server", (workbook, processor, path, data) => {
     if (processor === "define") {
-        const name = (data["!name"] ?? xlsx.filename(file)).replaceAll(".", "_");
+        const name = (data["!name"] ?? xlsx.basename(path)).replaceAll(".", "_");
         const marshal = `return `;
         xlsx.writeFile(
             `${OUTPUT_DIR}/server/define/${name}.lua`,
             xlsx.stringifyLua(data, { indent: 4, marshal })
         );
     } else if (processor === "stringify") {
-        const name = xlsx.filename(file);
+        const name = xlsx.basename(path);
         const marshal = `return `;
         xlsx.writeFile(
             `${OUTPUT_DIR}/server/data/${name}.lua`,
             xlsx.stringifyLua(data, { indent: 2, marshal })
         );
     } else if (processor === "typedef") {
-        const name = xlsx.filename(file);
-        const content = xlsx.genLuaTypedef(file, "server", (typename) => {
+        const name = xlsx.basename(path);
+        const content = xlsx.genLuaTypedef(workbook, (typename) => {
             return { type: makeTypename(typename) };
         });
         xlsx.writeFile(
@@ -87,15 +82,5 @@ xlsx.registerWriter("server", (file, data, processor) => {
 });
 
 await xlsx.parse(["test/res/item.xlsx", "test/res/task.xlsx"]);
-
-xlsx.writeFile(
-    "test/output/workbook-typedef.ts",
-    xlsx.genWorkbookTypedef((typename) => {
-        return {
-            type: makeTypename(typename),
-            path: "./client/define/index",
-        };
-    })
-);
 
 console.log(Date.now() - t);

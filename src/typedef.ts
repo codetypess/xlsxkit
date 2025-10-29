@@ -1,23 +1,20 @@
 import { StringBuffer } from "./stringify";
-import { filename, toPascalCase } from "./util";
-import { convertors, getWorkbook, getWorkbooks } from "./xlsx";
+import { basename, toPascalCase } from "./util";
+import { Context, convertors, Workbook } from "./xlsx";
 
 const basicTypes = ["string", "number", "boolean", "unknown", "object"];
 
 export type TypeResolver = (typename: string) => { type: string; path?: string };
 
-export const genTsTypedef = (path: string, writer: string, resolver: TypeResolver) => {
+export const genTsTypedef = (workbook: Workbook, resolver: TypeResolver) => {
     const buffer = new StringBuffer(4);
     buffer.writeLine(`// AUTO GENERATED, DO NOT MODIFY!`);
-    buffer.writeLine(`// file: ${path}`);
+    buffer.writeLine(`// file: ${workbook.path}`);
     buffer.writeLine("");
 
-    const workbook = getWorkbook(path, writer);
-    const sheets = Object.values(workbook.sheets)
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .filter((s) => !s.ignore);
+    const sheets = workbook.sheets.filter((s) => !s.ignore);
     const typeBuffer = new StringBuffer(4);
-    const name = filename(path);
+    const name = basename(workbook.path);
     const namedTypes: Record<string, Set<string>> = {};
     for (const sheet of sheets) {
         const className = toPascalCase(`Generated_${name}_${sheet.name}_Row`);
@@ -83,16 +80,14 @@ export const genTsTypedef = (path: string, writer: string, resolver: TypeResolve
     return buffer.toString();
 };
 
-export const genLuaTypedef = (path: string, writer: string, resolver: TypeResolver) => {
-    const workbook = getWorkbook(path, writer);
-    const sheets = Object.values(workbook.sheets)
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .filter((s) => !s.ignore);
+export const genLuaTypedef = (workbook: Workbook, resolver: TypeResolver) => {
+    const sheets = workbook.sheets.filter((s) => !s.ignore);
     const buffer = new StringBuffer(4);
-    const name = filename(path);
+    const name = basename(workbook.path);
     for (const sheet of sheets) {
-        const className = `xlsx.${writer}.` + toPascalCase(`${name}_${sheet.name}`);
-        buffer.writeLine(`---file: ${path}`);
+        const className =
+            `xlsx.${workbook.context.writer}.` + toPascalCase(`${name}_${sheet.name}`);
+        buffer.writeLine(`---file: ${workbook.path}`);
         buffer.writeLine(`---@class ${className}`);
         for (const field of sheet.fields.filter((f) => !f.ignore)) {
             const optional = field.typename.endsWith("?") ? "?" : "";
@@ -120,22 +115,19 @@ export const genLuaTypedef = (path: string, writer: string, resolver: TypeResolv
     return buffer.toString();
 };
 
-export const genWorkbookTypedef = (resolver: TypeResolver) => {
+export const genWorkbookTypedef = (ctx: Context, resolver: TypeResolver) => {
     const buffer = new StringBuffer(4);
     buffer.writeLine(`// AUTO GENERATED, DO NOT MODIFY!\n`);
 
     const typeBuffer = new StringBuffer(4);
-    const files = getWorkbooks();
     const namedTypes: Record<string, Set<string>> = {};
-    for (const path of Object.keys(files).sort()) {
-        const workbook = files[path];
-        const name = filename(path);
-        for (const k of Object.keys(workbook.sheets).sort()) {
-            const sheet = workbook.sheets[k];
+    for (const workbook of ctx.workbooks) {
+        const name = basename(workbook.path);
+        for (const sheet of workbook.sheets) {
             const className = toPascalCase(`${name}_${sheet.name}_Row`);
 
             // row
-            typeBuffer.writeLine(`// file: ${path}`);
+            typeBuffer.writeLine(`// file: ${workbook.path}`);
             if (sheet.processors.length > 0) {
                 typeBuffer.writeLine(`// processors:`);
                 for (const p of sheet.processors) {
@@ -160,7 +152,7 @@ export const genWorkbookTypedef = (resolver: TypeResolver) => {
                 if (typename.startsWith("@")) {
                     typename = "unknown";
                 } else if (!convertors[typename]) {
-                    const where = `file: ${path}#${sheet.name}#${field.refer}:${field.name}`;
+                    const where = `file: ${workbook.path}#${sheet.name}#${field.refer}:${field.name}`;
                     throw new Error(`convertor not found: ${typename} (${where})`);
                 }
                 typeBuffer.writeLine(`/**`);

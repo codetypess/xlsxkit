@@ -1,5 +1,5 @@
 import { keys } from "./util";
-import { checkType, getWorkbook, isNotNull, TCell, TRow, Type, Workbook } from "./xlsx";
+import { checkType, Context, isNotNull, TCell, TRow, Type, Workbook } from "./xlsx";
 
 /** string '2' and number 2 are considered the same */
 const isSame = (a: unknown, b: unknown) => {
@@ -21,6 +21,7 @@ export class ColumnIndexer<T = TRow> {
     private _rows: TRow[] = [];
 
     constructor(
+        private readonly context: Context,
         private readonly path: string,
         private readonly sheetName: string,
         private readonly field: string,
@@ -31,10 +32,10 @@ export class ColumnIndexer<T = TRow> {
         if (this._workbook) {
             return;
         }
-        this._workbook = getWorkbook(this.path);
+        this._workbook = this.context.get(this.path);
         let hasSheet = false;
         let hasField = false;
-        for (const sheet of Object.values(this._workbook.sheets)) {
+        for (const sheet of this._workbook.sheets) {
             if (sheet.name === this.sheetName || this.sheetName === "*") {
                 hasSheet = true;
                 if (!sheet.fields.find((f) => f.name === this.field)) {
@@ -113,6 +114,7 @@ export class RowIndexer<T = TRow> {
     private _rows: TRow[] = [];
 
     constructor(
+        private readonly ctx: Context,
         private readonly path: string,
         private readonly sheetName: string,
         private readonly filter?: (row: T) => boolean
@@ -122,9 +124,9 @@ export class RowIndexer<T = TRow> {
         if (this._workbook) {
             return;
         }
-        this._workbook = getWorkbook(this.path);
+        this._workbook = this.ctx.get(this.path);
         let hasSheet = false;
-        for (const sheet of Object.values(this._workbook.sheets)) {
+        for (const sheet of this._workbook.sheets) {
             if (sheet.name === this.sheetName || this.sheetName === "*") {
                 hasSheet = true;
                 for (const key of keys(sheet.data)) {

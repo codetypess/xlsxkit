@@ -1,8 +1,8 @@
 import { ColumnIndexer, RowFilter } from "./indexer";
 import { keys } from "./util";
-import { CheckerParser, convertValue, error, getWorkbook, TCell, TObject, TValue } from "./xlsx";
+import { CheckerParser, Context, convertValue, error, TCell, TObject, TValue } from "./xlsx";
 
-export const SizeCheckerParser: CheckerParser = (arg) => {
+export const SizeCheckerParser: CheckerParser = (ctx, arg) => {
     const length = Number(arg);
     if (isNaN(length)) {
         throw new Error(`Invalid length: '${length}'`);
@@ -15,14 +15,14 @@ export const SizeCheckerParser: CheckerParser = (arg) => {
     };
 };
 
-export const ExprCheckerParser: CheckerParser = (arg) => {
+export const ExprCheckerParser: CheckerParser = (ctx, arg) => {
     const expr = new Function("$", "return " + arg);
     return (cell, row, field, errors) => {
         return expr(cell.v);
     };
 };
 
-export const FollowCheckerParser: CheckerParser = (arg) => {
+export const FollowCheckerParser: CheckerParser = (ctx, arg) => {
     return (cell, row, field, errors) => {
         const follow = row[arg] as TCell;
         if (follow.v !== null) {
@@ -33,7 +33,7 @@ export const FollowCheckerParser: CheckerParser = (arg) => {
     };
 };
 
-export const RangeCheckerParser: CheckerParser = (arg) => {
+export const RangeCheckerParser: CheckerParser = (ctx, arg) => {
     let values: unknown[] = [];
     try {
         values = JSON.parse(arg);
@@ -135,18 +135,18 @@ type IndexerFilterExpr = {
     filter: string;
 };
 
-const parseFilter = (expr: IndexerFilterExpr) => {
-    const workbook = getWorkbook(expr.file);
+const parseFilter = (ctx: Context, expr: IndexerFilterExpr) => {
+    const workbook = ctx.get(expr.file);
     const findField = (name: string) => {
         if (expr.sheet === "*") {
-            for (const sheet of Object.values(workbook.sheets)) {
+            for (const sheet of workbook.sheets) {
                 const field = sheet.fields.find((f) => f.name === name);
                 if (field) {
                     return field;
                 }
             }
         } else {
-            const sheet = workbook.sheets[expr.sheet];
+            const sheet = workbook.get(expr.sheet);
             return sheet.fields.find((f) => f.name === name);
         }
     };
@@ -169,21 +169,22 @@ const parseFilter = (expr: IndexerFilterExpr) => {
         }) as readonly RowFilter[];
 };
 
-const parseIndexerAst = (rowExpr: IndexerFilterExpr, colExpr: IndexerFilterExpr) => {
+const parseIndexerAst = (ctx: Context, rowExpr: IndexerFilterExpr, colExpr: IndexerFilterExpr) => {
     return {
         value: {
             key: rowExpr.key,
             resolve: parseResolver(rowExpr),
-            filter: parseFilter(rowExpr),
+            filter: parseFilter(ctx, rowExpr),
         },
         target: {
             key: colExpr.key,
-            filter: parseFilter(colExpr),
+            filter: parseFilter(ctx, colExpr),
         },
     };
 };
 
 export const IndexCheckerParser: CheckerParser = (
+    workbook,
     rowFile,
     rowSheet,
     rowKey,
@@ -194,6 +195,7 @@ export const IndexCheckerParser: CheckerParser = (
     colFilter
 ) => {
     const ast = parseIndexerAst(
+        workbook.context,
         {
             file: rowFile,
             sheet: rowSheet,
@@ -207,7 +209,7 @@ export const IndexCheckerParser: CheckerParser = (
             filter: colFilter,
         }
     );
-    const indexer = new ColumnIndexer(colFile, colSheet, ast.target.key);
+    const indexer = new ColumnIndexer(workbook.context, colFile, colSheet, ast.target.key);
 
     return (cell, row, field, errors) => {
         if (cell.v === null || cell.v === undefined) {
@@ -239,16 +241,24 @@ export const IndexCheckerParser: CheckerParser = (
     };
 };
 
-export const SheetCheckerParser: CheckerParser = (rowFile, rowSheet, rowKey, rowFilter, file) => {
+export const SheetCheckerParser: CheckerParser = (
+    workbook,
+    rowFile,
+    rowSheet,
+    rowKey,
+    rowFilter,
+    file
+) => {
     const ast = parseIndexerAst(
+        workbook.context,
         { file: rowFile, sheet: rowSheet, key: rowKey, filter: rowFilter },
         { file: file, sheet: "", key: "", filter: "" }
     );
     const path = file.replace(/\.xlsx$/, "") + ".xlsx";
-    const workbook = getWorkbook(path);
+    const target = workbook.context.get(path);
     return (cell, row, field, errors) => {
         return ast.value.resolve(cell.v, errors, (value) => {
-            const sheet = workbook.sheets[value as string];
+            const sheet = target.get(value as string);
             return sheet !== undefined;
         });
     };
