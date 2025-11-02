@@ -1,5 +1,5 @@
 import * as fs from "node:fs";
-import { basename as _basename, dirname, extname } from "node:path";
+import { basename, dirname, extname } from "node:path";
 import {
     JsonStringifyOption,
     LuaStringifyOption,
@@ -165,6 +165,6 @@ export const writeTs = (path: string, data: unknown, options?: TsStringifyOption
     writeFile(path, stringifyTs(data as TValue, options));
 };
 
-export const basename = (path: string, suffix: boolean = false) => {
-    return _basename(path, !suffix ? extname(path) : undefined);
+export const filename = (path: string, suffix: boolean = false) => {
+    return basename(path, !suffix ? extname(path) : undefined);
 };

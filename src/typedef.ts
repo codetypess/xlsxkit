@@ -1,10 +1,40 @@
 import { StringBuffer } from "./stringify";
-import { basename, toPascalCase } from "./util";
+import { filename, toPascalCase } from "./util";
 import { Context, convertors, Workbook } from "./xlsx";
 
 const basicTypes = ["string", "number", "boolean", "unknown", "object"];
 
 export type TypeResolver = (typename: string) => { type: string; path?: string };
+
+export class TypeImporter {
+    private readonly _namedTypes: Record<string, Set<string>> = {};
+
+    constructor(readonly resolver: TypeResolver) {}
+
+    resolve(typename: string) {
+        const ret = this.resolver(typename);
+        if (ret.path && !basicTypes.includes(ret.type)) {
+            this._namedTypes[ret.path] ||= new Set();
+            this._namedTypes[ret.path].add(ret.type);
+        }
+        return ret;
+    }
+
+    toString() {
+        const arr = Object.entries(this._namedTypes)
+            .filter(([_, types]) => types.size > 0)
+            .map(([path, types]) => ({ path, items: Array.from(types).sort() }));
+        const buffer: string[] = [];
+        for (const entry of arr) {
+            buffer.push(`import {`);
+            for (const typename of entry.items) {
+                buffer.push(`    ${typename},`);
+            }
+            buffer.push(`} from "${entry.path}";`);
+        }
+        return buffer.join("\n");
+    }
+}
 
 export const genTsTypedef = (workbook: Workbook, resolver: TypeResolver) => {
     const buffer = new StringBuffer(4);
@@ -12,10 +42,10 @@ export const genTsTypedef = (workbook: Workbook, resolver: TypeResolver) => {
     buffer.writeLine(`// file: ${workbook.path}`);
     buffer.writeLine("");
 
+    const typeImporter = new TypeImporter(resolver);
     const sheets = workbook.sheets.filter((s) => !s.ignore);
     const typeBuffer = new StringBuffer(4);
-    const name = basename(workbook.path);
-    const namedTypes: Record<string, Set<string>> = {};
+    const name = filename(workbook.path);
     for (const sheet of sheets) {
         const className = toPascalCase(`Generated_${name}_${sheet.name}_Row`);
         typeBuffer.writeLine(`export interface ${className} {`);
@@ -46,11 +76,7 @@ export const genTsTypedef = (workbook: Workbook, resolver: TypeResolver) => {
             ) {
                 typeBuffer.writeLine(`readonly ${field.name}${optional}: unknown${array};`);
             } else {
-                const ret = resolver(typename);
-                if (ret.path) {
-                    namedTypes[ret.path] ||= new Set();
-                    namedTypes[ret.path].add(ret.type);
-                }
+                const ret = typeImporter.resolve(typename);
                 typeBuffer.writeLine(`readonly ${field.name}${optional}: ${ret.type}${array};`);
             }
         }
@@ -59,19 +85,9 @@ export const genTsTypedef = (workbook: Workbook, resolver: TypeResolver) => {
         typeBuffer.writeLine("");
     }
 
-    if (Object.keys(namedTypes).length > 0) {
-        for (const entry of Object.entries(namedTypes)) {
-            const types = Array.from(entry[1])
-                .filter((t) => !basicTypes.includes(t))
-                .sort();
-            if (types.length > 0) {
-                buffer.writeLine(`import {`);
-                for (const typename of types) {
-                    buffer.writeLine(`    ${typename},`);
-                }
-                buffer.writeLine(`} from "${entry[0]}";`);
-            }
-        }
+    const imports = typeImporter.toString();
+    if (imports.length > 0) {
+        buffer.writeLine(imports);
         buffer.writeLine("");
     }
 
@@ -83,7 +99,7 @@ export const genTsTypedef = (workbook: Workbook, resolver: TypeResolver) => {
 export const genLuaTypedef = (workbook: Workbook, resolver: TypeResolver) => {
     const sheets = workbook.sheets.filter((s) => !s.ignore);
     const buffer = new StringBuffer(4);
-    const name = basename(workbook.path);
+    const name = filename(workbook.path);
     for (const sheet of sheets) {
         const className =
             `xlsx.${workbook.context.writer}.` + toPascalCase(`${name}_${sheet.name}`);
@@ -120,14 +136,11 @@ export const genWorkbookTypedef = (ctx: Context, resolver: TypeResolver) => {
     buffer.writeLine(`// AUTO GENERATED, DO NOT MODIFY!\n`);
 
     const typeBuffer = new StringBuffer(4);
-    const namedTypes: Record<string, Set<string>> = {};
-
-    const TCellImport = resolver("TCell");
-    namedTypes[TCellImport.path!] ||= new Set();
-    namedTypes[TCellImport.path!].add(TCellImport.type);
+    const typeImporter = new TypeImporter(resolver);
+    typeImporter.resolve("TCell");
 
     for (const workbook of ctx.workbooks) {
-        const name = basename(workbook.path);
+        const name = filename(workbook.path);
         for (const sheet of workbook.sheets) {
             const className = toPascalCase(`${name}_${sheet.name}_Row`);
 
@@ -182,11 +195,7 @@ export const genWorkbookTypedef = (ctx: Context, resolver: TypeResolver) => {
                 ) {
                     typeBuffer.writeString(`unknown`);
                 } else {
-                    const ret = resolver(typename);
-                    if (ret.path) {
-                        namedTypes[ret.path] ||= new Set();
-                        namedTypes[ret.path].add(ret.type);
-                    }
+                    const ret = typeImporter.resolve(typename);
                     typeBuffer.writeString(`${ret.type}`);
                 }
                 typeBuffer.writeString(`${array} } & TCell;`);
@@ -198,24 +207,15 @@ export const genWorkbookTypedef = (ctx: Context, resolver: TypeResolver) => {
         }
     }
 
-    if (Object.keys(namedTypes).length > 0) {
-        for (const entry of Object.entries(namedTypes)) {
-            const types = Array.from(entry[1])
-                .filter((t) => !basicTypes.includes(t))
-                .sort();
-            if (types.length > 0) {
-                buffer.writeLine(`import {`);
-                for (const typename of types) {
-                    buffer.writeLine(`    ${typename},`);
-                }
-                buffer.writeLine(`} from "${entry[0]}";`);
-            }
-        }
+    const imports = typeImporter.toString();
+    if (imports.length > 0) {
+        buffer.writeLine(imports);
         buffer.writeLine("");
     }
 
     buffer.writeLine(`type TCell = Omit<_TCell, "v">;`);
     buffer.writeLine("");
     buffer.writeLine(typeBuffer.toString());
+
     return buffer.toString();
 };

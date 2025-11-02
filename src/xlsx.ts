@@ -407,6 +407,7 @@ export const registerWriter = (name: string, writer: Writer) => {
 };
 
 const tokenizeArray = (str: string) => {
+    str = str.trim();
     if (!str.startsWith("[") || !str.endsWith("]")) {
         error(`Invalid array string: '${str}'`);
     }
@@ -421,7 +422,7 @@ const tokenizeArray = (str: string) => {
         if (!quote) {
             if (char === '"' || char === "'") {
                 quote = char;
-                current += char;
+                current = "";
             } else if (char === "{" || char === "[") {
                 depth++;
                 current += char;
@@ -438,9 +439,10 @@ const tokenizeArray = (str: string) => {
                 current += char;
             }
         } else {
-            current += char;
             if (char === quote && content[i - 1] !== "\\") {
                 quote = "";
+            } else {
+                current += char;
             }
         }
     }

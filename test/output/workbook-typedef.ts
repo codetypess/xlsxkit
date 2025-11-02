@@ -20,9 +20,9 @@ type TCell = Omit<_TCell, "v">;
 //  - @typedef
 //  - @auto-register
 //  - @post_stringify
+//  - @workbook-typedef
 //  - @workbook-indexer
 //  - @validate-json
-//  - @workbook-typedef
 export interface ItemDefineRow {
     /**
      * ### (location: A2) (checker: x) (writer: client|server)
@@ -315,9 +315,9 @@ export interface TaskConfRow {
 //  - @typedef
 //  - @auto-register
 //  - @post_stringify
+//  - @workbook-typedef
 //  - @workbook-indexer
 //  - @validate-json
-//  - @workbook-typedef
 export interface TaskDefineRow {
     /**
      * ### (location: A2) (checker: x) (writer: client|server)

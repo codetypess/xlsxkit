@@ -178,9 +178,9 @@ const genSchema = () => {
 };
 
 const validate = async (workbook: xlsx.Workbook) => {
-    const workbookName = xlsx.basename(workbook.path);
+    const workbookName = xlsx.filename(workbook.path);
     const schemaPath = resolve("./", `test/output/client/schema/types/${workbookName}.schema.ts`);
-    const jsonPath = `test/output/client/data/${xlsx.basename(workbook.path)}.json`;
+    const jsonPath = `test/output/client/data/${xlsx.filename(workbook.path)}.json`;
     const pName = xlsx.toPascalCase(workbookName);
     const schemaName = `generated${pName}TableSchema`;
     await validateJson(schemaPath, schemaName, jsonPath);

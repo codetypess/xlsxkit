@@ -1,4 +1,7 @@
-import { keys } from "./util";
+import { basename } from "path";
+import { StringBuffer } from "./stringify";
+import { TypeImporter, TypeResolver } from "./typedef";
+import { filename, format, keys, toPascalCase } from "./util";
 import { checkType, Context, isNotNull, TCell, TRow, Type, Workbook } from "./xlsx";
 
 /** string '2' and number 2 are considered the same */
@@ -187,3 +190,150 @@ export class RowIndexer<T = TRow> {
         }
     }
 }
+
+export const genWorkbookIndexer = (ctx: Context, resolver: TypeResolver) => {
+    const typeBuffer = new StringBuffer(4);
+
+    const filter: Record<string, boolean> = {};
+    const typeImporter = new TypeImporter(resolver);
+
+    typeImporter.resolve("ColumnIndexer");
+    typeImporter.resolve("Context");
+    typeImporter.resolve("RowIndexer");
+
+    for (const workbook of ctx.workbooks) {
+        const name = filename(workbook.path);
+
+        if (filter[name]) {
+            continue;
+        }
+        filter[name] = true;
+
+        const fileClassName = toPascalCase(`${name}_indexer`);
+        const sheets: string[] = [];
+        const sheetClasses: string[] = [];
+        const rowIndexerBuffer = new StringBuffer(4);
+        const colIndexerBuffer = new StringBuffer(4);
+        for (const sheet of workbook.sheets) {
+            const className = toPascalCase(`${name}_${sheet.name}_row`);
+            typeImporter.resolve(className);
+            sheets.push(sheet.name);
+            sheetClasses.push(className);
+            rowIndexerBuffer.writeLine(
+                format(
+                    `static getRowIndexer(ctx: Context, sheet: %{sheet}, filter?: %{filter}): %{ret};`,
+                    {
+                        sheet: `"${sheet.name}"`,
+                        filter: `Filter<${className}>`,
+                        ret: `RowIndexer<${className}>`,
+                    }
+                )
+            );
+            colIndexerBuffer.writeLine(
+                format(
+                    `static getColumnIndexer(ctx: Context, sheet: %{sheet}, field: %{field}, filter?: %{filter}): %{ret};`,
+                    {
+                        sheet: `"${sheet.name}"`,
+                        field: `keyof ${className}`,
+                        filter: `Filter<${className}>`,
+                        ret: `ColumnIndexer<${className}>`,
+                    }
+                )
+            );
+        }
+        rowIndexerBuffer.writeLines(
+            format(
+                `
+                static getRowIndexer(ctx: Context, sheet: %{sheets}, filter?: %{filters}): unknown {
+                    return createRowIndexer(ctx, "${basename(workbook.path)}", sheet, filter as Filter<unknown>);
+                }`,
+                {
+                    sheets: sheets.map((v) => `"${v}"`).join(" | "),
+                    filters: sheetClasses.map((v) => `Filter<${v}>`).join(" | "),
+                }
+            )
+        );
+        colIndexerBuffer.writeLines(
+            format(
+                `
+                static getColumnIndexer(ctx: Context, sheet: %{sheets}, field: %{fields}, filter?: %{filters}): unknown {
+                    return createColumnIndexer(ctx, "${basename(workbook.path)}", sheet, field, filter as Filter<unknown>);
+                }`,
+                {
+                    sheets: sheets.map((v) => `"${v}"`).join(" | "),
+                    filters: sheetClasses.map((v) => `Filter<${v}>`).join(" | "),
+                    fields: "string",
+                }
+            )
+        );
+
+        typeBuffer.writeLine(`// file: ${workbook.path}`);
+        typeBuffer.writeLine(`export class ${fileClassName} {`);
+        typeBuffer.indent();
+        typeBuffer.writeLines(rowIndexerBuffer.toString());
+        typeBuffer.writeLines(colIndexerBuffer.toString());
+        typeBuffer.unindent();
+        typeBuffer.writeLine("}\n");
+    }
+
+    const buffer = new StringBuffer(4);
+    buffer.writeLine(
+        format(
+            `
+            // AUTO GENERATED, DO NOT MODIFY!
+
+            %{imports}
+
+            type Filter<T> = (row: T) => boolean;
+
+            const cacheRowIndexers = new Map<string, RowIndexer<unknown>>();
+            const cacheColumnIndexers = new Map<string, ColumnIndexer<unknown>>();
+
+            const createRowIndexer = <T>(
+                ctx: Context,
+                path: string,
+                sheet: string,
+                filter?: Filter<unknown>
+            ) => {
+                if (filter) {
+                    return new RowIndexer(ctx, path, sheet, filter);
+                } else {
+                    const key = \`\${ctx.writer}:\${ctx.tag}:\${path}:\${sheet}\`;
+                    let indexer = cacheRowIndexers.get(key);
+                    if (!indexer) {
+                        indexer = new RowIndexer(ctx, path, sheet);
+                        cacheRowIndexers.set(key, indexer as RowIndexer<unknown>);
+                    }
+                    return indexer as RowIndexer<T>;
+                }
+            };
+
+            const createColumnIndexer = <T>(
+                ctx: Context,
+                path: string,
+                sheet: string,
+                field: string,
+                filter?: Filter<unknown>
+            ) => {
+                if (filter) {
+                    return new ColumnIndexer(ctx, path, sheet, field, filter);
+                } else {
+                    const key = \`\${ctx.writer}:\${ctx.tag}:\${path}:\${sheet}:\${field}\`;
+                    let indexer = cacheColumnIndexers.get(key);
+                    if (!indexer) {
+                        indexer = new ColumnIndexer(ctx, path, sheet, field);
+                        cacheColumnIndexers.set(key, indexer as ColumnIndexer<unknown>);
+                    }
+                    return indexer as ColumnIndexer<T>;
+                }
+            };
+
+            `,
+            {
+                imports: typeImporter.toString(),
+            }
+        )
+    );
+    buffer.writeLines(typeBuffer.toString());
+    return buffer.toString();
+};
