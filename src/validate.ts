@@ -1,27 +1,32 @@
 import * as fs from "fs";
 import { normalize, relative } from "path";
+import ts from "typescript";
 import { pathToFileURL } from "url";
 import { z } from "zod";
-import { StringBuffer } from "..";
 
 interface FieldDesc {
     name: string;
     type: string;
     isOptional: boolean;
     isOverride: boolean;
+    isReadonly: boolean;
     comment?: string;
 }
 
 interface InterfaceDesc {
     name: string;
     fields: FieldDesc[];
-    lines: string[];
     comment?: string;
+    rawText: string;
 }
 
 interface ImportDesc {
     path: string;
-    types: string[];
+    isTypeOnly: boolean;
+    defaultImport?: string;
+    namespaceImport?: string;
+    namedImports: string[];
+    sideEffectOnly?: boolean;
 }
 
 interface FileDesc {
@@ -30,223 +35,126 @@ interface FileDesc {
     otherContent: string[];
 }
 
+const trimBlock = (value: string) => value.replace(/^\s+|\s+$/g, "");
+
+const getCommentText = (sourceFile: ts.SourceFile, node: ts.Node) => {
+    const jsDoc = (node as ts.Node & { jsDoc?: readonly ts.JSDoc[] }).jsDoc;
+    const comments = jsDoc?.map((doc) => trimBlock(sourceFile.text.slice(doc.pos, doc.end))) ?? [];
+    return comments.length > 0 ? comments.join("\n") : undefined;
+};
+
+const getNodeText = (sourceFile: ts.SourceFile, node: ts.Node) => {
+    return sourceFile.text.slice(node.getStart(sourceFile), node.getEnd());
+};
+
+const getRawText = (sourceFile: ts.SourceFile, node: ts.Node) => {
+    return trimBlock(sourceFile.text.slice(node.getFullStart(), node.getEnd()));
+};
+
+const hasOverrideComment = (sourceFile: ts.SourceFile, node: ts.Node) => {
+    const end = node.getEnd();
+    const lineEnd = sourceFile.text.indexOf("\n", end);
+    const text = sourceFile.text.slice(end, lineEnd === -1 ? sourceFile.text.length : lineEnd);
+    return text.includes("// override");
+};
+
+const parseImport = (sourceFile: ts.SourceFile, node: ts.ImportDeclaration): ImportDesc => {
+    const path = (node.moduleSpecifier as ts.StringLiteral).text;
+    const clause = node.importClause;
+    if (!clause) {
+        return {
+            path,
+            isTypeOnly: false,
+            namedImports: [],
+            sideEffectOnly: true,
+        };
+    }
+
+    const desc: ImportDesc = {
+        path,
+        isTypeOnly: clause.isTypeOnly,
+        namedImports: [],
+    };
+
+    if (clause.name) {
+        desc.defaultImport = clause.name.text;
+    }
+
+    if (clause.namedBindings) {
+        if (ts.isNamespaceImport(clause.namedBindings)) {
+            desc.namespaceImport = clause.namedBindings.name.text;
+        } else if (ts.isNamedImports(clause.namedBindings)) {
+            desc.namedImports = clause.namedBindings.elements.map((element) =>
+                getNodeText(sourceFile, element)
+            );
+        }
+    }
+
+    return desc;
+};
+
+const parseInterface = (
+    sourceFile: ts.SourceFile,
+    node: ts.InterfaceDeclaration
+): InterfaceDesc => {
+    const fields: FieldDesc[] = [];
+    for (const member of node.members) {
+        if (!ts.isPropertySignature(member) || !member.type || !member.name) {
+            continue;
+        }
+        fields.push({
+            name: getNodeText(sourceFile, member.name),
+            type: getNodeText(sourceFile, member.type),
+            isOptional: !!member.questionToken,
+            isOverride: hasOverrideComment(sourceFile, member),
+            isReadonly:
+                member.modifiers?.some(
+                    (modifier) => modifier.kind === ts.SyntaxKind.ReadonlyKeyword
+                ) ?? false,
+            comment: getCommentText(sourceFile, member),
+        });
+    }
+
+    return {
+        name: node.name.text,
+        fields,
+        comment: getCommentText(sourceFile, node),
+        rawText: getRawText(sourceFile, node),
+    };
+};
+
 const parseFile = (filePath: string): FileDesc => {
-    const lines = fs.readFileSync(filePath, "utf-8").split("\n");
+    const content = fs.readFileSync(filePath, "utf-8");
+    const sourceFile = ts.createSourceFile(
+        filePath,
+        content,
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TS
+    );
     const fileDesc: FileDesc = {
         interfaces: [],
         imports: [],
         otherContent: [],
     };
 
-    let currentInterface: InterfaceDesc | null = null;
-    let braceCount = 0;
-    let pendingFieldComment = "";
-    let pendingInterfaceComment = "";
-    let currentImport: ImportDesc | null = null;
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const trimmedLine = line.trim();
-
-        // Collect import statements
-        if (currentImport) {
-            if (trimmedLine.includes(" from ")) {
-                currentImport.path = trimmedLine.split(" from ")[1].replace(/["';]/g, "");
-                fileDesc.imports.push(currentImport);
-                currentImport = null;
-            } else {
-                currentImport.types.push(trimmedLine.replace(",", ""));
-            }
+    for (const statement of sourceFile.statements) {
+        if (ts.isImportDeclaration(statement)) {
+            fileDesc.imports.push(parseImport(sourceFile, statement));
             continue;
-        } else if (trimmedLine.startsWith("import ")) {
-            if (trimmedLine.includes(" from ")) {
-                const path = trimmedLine.split(" from ")[1].replace(/["';]/g, "");
-                const types = trimmedLine
-                    .split(" from ")[0]
-                    .replace(/import /g, "")
-                    .replace(/["';{} ]/g, "")
-                    .split(",");
-                fileDesc.imports.push({
-                    path,
-                    types,
-                });
-                currentImport = null;
-            } else {
-                currentImport = {
-                    path: "",
-                    types: [],
-                };
-            }
+        }
+        if (ts.isInterfaceDeclaration(statement)) {
+            fileDesc.interfaces.push(parseInterface(sourceFile, statement));
             continue;
         }
 
-        // Check for interface-level comments when not in interface
-        if (!currentInterface && trimmedLine.startsWith("/**")) {
-            pendingInterfaceComment = line;
-            for (i = i + 1; i < lines.length; i++) {
-                pendingInterfaceComment += "\n" + lines[i];
-                if (lines[i].trim().includes("*/")) {
-                    break;
-                }
-            }
-            continue;
-        }
-
-        if (!trimmedLine) {
-            pendingInterfaceComment = "";
-            continue;
-        }
-
-        // Check for interface start
-        const interfaceMatch = trimmedLine.match(/export\s+interface\s+(\w+)/);
-        if (interfaceMatch && !currentInterface) {
-            const interfaceName = interfaceMatch[1];
-            currentInterface = {
-                name: interfaceName,
-                fields: [],
-                lines: [],
-                comment: pendingInterfaceComment || undefined,
-            };
-            braceCount = 0;
-            pendingInterfaceComment = "";
-        }
-
-        // If we're inside an interface
-        if (currentInterface) {
-            currentInterface.lines.push(line);
-
-            // Check for field comments
-            if (trimmedLine.startsWith("/**")) {
-                pendingFieldComment = trimmedLine;
-                for (i = i + 1; i < lines.length; i++) {
-                    pendingFieldComment += "\n" + lines[i];
-                    currentInterface.lines.push(lines[i]);
-                    if (lines[i].trim().includes("*/")) {
-                        break;
-                    }
-                }
-                continue;
-            }
-
-            // Count braces
-            braceCount += (line.match(/\{/g) || []).length;
-            braceCount -= (line.match(/\}/g) || []).length;
-
-            // Check for field definitions
-            const fieldMatch = trimmedLine.match(/readonly\s+([\w$]+)(\??):\s*([^;]+);/);
-            if (fieldMatch) {
-                const fieldName = fieldMatch[1];
-                const isOptional = fieldMatch[2] === "?";
-                const fieldType = fieldMatch[3].trim();
-
-                currentInterface.fields.push({
-                    name: fieldName,
-                    type: fieldType,
-                    isOptional,
-                    isOverride: trimmedLine.includes("// override"),
-                    comment: pendingFieldComment || undefined,
-                });
-
-                pendingFieldComment = "";
-            }
-
-            // Check if interface is complete
-            if (braceCount === 0 && trimmedLine.includes("}")) {
-                fileDesc.interfaces.push(currentInterface);
-                currentInterface = null;
-            }
-        } else if (!currentInterface) {
-            // Collect other content (types, constants, etc.)
-            if (trimmedLine && !trimmedLine.startsWith("//")) {
-                fileDesc.otherContent.push(line);
-                pendingInterfaceComment = "";
-            }
+        const text = getRawText(sourceFile, statement);
+        if (text) {
+            fileDesc.otherContent.push(text);
         }
     }
 
     return fileDesc;
-};
-
-const mergeInterfaces = (
-    autoInterfaces: InterfaceDesc[],
-    tsInterfaces: InterfaceDesc[]
-): InterfaceDesc[] => {
-    const mergedInterfaces: InterfaceDesc[] = [];
-
-    // Start with all interfaces from auto file
-    autoInterfaces.forEach((autoInterface) => {
-        const tsInterface = tsInterfaces.find((ts) => ts.name === autoInterface.name);
-
-        if (!tsInterface) {
-            // Interface only exists in auto file, use as-is
-            mergedInterfaces.push(autoInterface);
-            return;
-        }
-
-        // Merge fields from both interfaces
-        // Only keep fields that exist in auto file
-        const mergedFields: FieldDesc[] = [];
-
-        autoInterface.fields.forEach((autoField) => {
-            const tsField = tsInterface.fields.find((ts) => ts.name === autoField.name);
-
-            if (!tsField) {
-                // Field only exists in auto file, use as-is
-                mergedFields.push(autoField);
-            } else {
-                // Field exists in both, apply merge rules
-                mergedFields.push({
-                    name: autoField.name,
-                    isOverride: tsField.isOverride,
-                    type: tsField.isOverride ? tsField.type : autoField.type, // Use type from ts file
-                    isOptional: autoField.isOptional, // Use optional from auto file
-                    comment: autoField.comment, // Use comment from auto file
-                });
-            }
-        });
-
-        mergedInterfaces.push({
-            name: autoInterface.name,
-            comment: autoInterface.comment,
-            fields: mergedFields,
-            lines: generateInterfaceContent(
-                autoInterface.name,
-                mergedFields,
-                autoInterface.comment
-            ),
-        });
-    });
-
-    // Add interfaces that only exist in ts file
-    tsInterfaces.forEach((tsInterface) => {
-        if (
-            !autoInterfaces.find((auto) => auto.name === tsInterface.name) &&
-            !tsInterface.name.match(/^Generated.+Row$/)
-        ) {
-            mergedInterfaces.push(tsInterface);
-        }
-    });
-
-    return mergedInterfaces;
-};
-
-const mergeImports = (autoImports: ImportDesc[], tsImports: ImportDesc[]): ImportDesc[] => {
-    const mergedImports: ImportDesc[] = tsImports.slice();
-
-    for (const autoImport of autoImports) {
-        const found = mergedImports.find((merged) => merged.path === autoImport.path);
-        if (found) {
-            found.types.push(...autoImport.types);
-        } else {
-            mergedImports.push(autoImport);
-        }
-    }
-
-    mergedImports.forEach((merged) => {
-        merged.types = [...new Set(merged.types)].sort();
-    });
-
-    return mergedImports;
 };
 
 const generateInterfaceContent = (name: string, fields: FieldDesc[], comment?: string) => {
@@ -258,17 +166,131 @@ const generateInterfaceContent = (name: string, fields: FieldDesc[], comment?: s
     result.push(`export interface ${name} {`);
 
     fields.forEach((field) => {
+        const readonly = field.isReadonly ? "readonly " : "";
         const optional = field.isOptional ? "?" : "";
         const override = field.isOverride ? " // override" : "";
         if (field.comment) {
             result.push(`    ${field.comment}`);
         }
-        result.push(`    readonly ${field.name}${optional}: ${field.type};${override}`);
+        result.push(`    ${readonly}${field.name}${optional}: ${field.type};${override}`);
     });
 
     result.push("}");
 
-    return result;
+    return result.join("\n");
+};
+
+const mergeInterfaces = (
+    autoInterfaces: InterfaceDesc[],
+    tsInterfaces: InterfaceDesc[]
+): InterfaceDesc[] => {
+    const mergedInterfaces: InterfaceDesc[] = [];
+
+    autoInterfaces.forEach((autoInterface) => {
+        const tsInterface = tsInterfaces.find((entry) => entry.name === autoInterface.name);
+
+        if (!tsInterface) {
+            mergedInterfaces.push({
+                ...autoInterface,
+                rawText: generateInterfaceContent(
+                    autoInterface.name,
+                    autoInterface.fields,
+                    autoInterface.comment
+                ),
+            });
+            return;
+        }
+
+        const mergedFields: FieldDesc[] = autoInterface.fields.map((autoField) => {
+            const tsField = tsInterface.fields.find((entry) => entry.name === autoField.name);
+            if (!tsField) {
+                return autoField;
+            }
+            return {
+                ...autoField,
+                isOverride: tsField.isOverride,
+                type: tsField.isOverride ? tsField.type : autoField.type,
+            };
+        });
+
+        mergedInterfaces.push({
+            name: autoInterface.name,
+            comment: autoInterface.comment,
+            fields: mergedFields,
+            rawText: generateInterfaceContent(
+                autoInterface.name,
+                mergedFields,
+                autoInterface.comment
+            ),
+        });
+    });
+
+    tsInterfaces.forEach((tsInterface) => {
+        if (
+            !autoInterfaces.find((entry) => entry.name === tsInterface.name) &&
+            !tsInterface.name.match(/^Generated.+Row$/)
+        ) {
+            mergedInterfaces.push(tsInterface);
+        }
+    });
+
+    return mergedInterfaces;
+};
+
+const mergeImports = (autoImports: ImportDesc[], tsImports: ImportDesc[]): ImportDesc[] => {
+    const merged = new Map<string, ImportDesc>();
+
+    const makeKey = (entry: ImportDesc) =>
+        [
+            entry.path,
+            entry.isTypeOnly ? "type" : "value",
+            entry.defaultImport ?? "",
+            entry.namespaceImport ?? "",
+            entry.sideEffectOnly ? "side" : "bind",
+        ].join("|");
+
+    const append = (entry: ImportDesc) => {
+        const key = makeKey(entry);
+        const found = merged.get(key);
+        if (!found) {
+            merged.set(key, {
+                ...entry,
+                namedImports: [...entry.namedImports],
+            });
+            return;
+        }
+        found.namedImports.push(...entry.namedImports);
+        found.namedImports = [...new Set(found.namedImports)].sort();
+    };
+
+    tsImports.forEach(append);
+    autoImports.forEach(append);
+
+    return Array.from(merged.values()).sort(
+        (a, b) =>
+            a.path.localeCompare(b.path) ||
+            Number(a.isTypeOnly) - Number(b.isTypeOnly) ||
+            (a.defaultImport ?? "").localeCompare(b.defaultImport ?? "")
+    );
+};
+
+const generateImportContent = (entry: ImportDesc) => {
+    if (entry.sideEffectOnly) {
+        return `import "${entry.path}";`;
+    }
+
+    const parts: string[] = [];
+    if (entry.defaultImport) {
+        parts.push(entry.defaultImport);
+    }
+    if (entry.namespaceImport) {
+        parts.push(`* as ${entry.namespaceImport}`);
+    }
+    if (entry.namedImports.length > 0) {
+        parts.push(`{\n${entry.namedImports.map((item) => `    ${item},`).join("\n")}\n}`);
+    }
+    const typeKeyword = entry.isTypeOnly ? "type " : "";
+    return `import ${typeKeyword}${parts.join(", ")} from "${entry.path}";`;
 };
 
 const generateMergedTypeFile = (
@@ -279,42 +301,24 @@ const generateMergedTypeFile = (
     tsFileName: string,
     autoFileName: string
 ) => {
-    const buffer = new StringBuffer(4);
-    buffer.writeLine(`// AUTO GENERATED DO NOT MODIFY!`);
-    buffer.writeLine(`// MERGED FROM ${autoFileName} AND ${tsFileName}`);
-    buffer.writeLine("");
+    const sections: string[] = [];
+    sections.push(
+        `// AUTO GENERATED DO NOT MODIFY!\n` + `// MERGED FROM ${autoFileName} AND ${tsFileName}`
+    );
 
     if (imports.length > 0) {
-        for (const importDef of imports) {
-            buffer.writeLine(`import {`);
-            buffer.indent();
-            for (const type of importDef.types) {
-                buffer.writeLine(`${type},`);
-            }
-            buffer.unindent();
-            buffer.writeLine(`} from "${importDef.path}";`);
-        }
-
-        buffer.writeLine("");
+        sections.push(imports.map(generateImportContent).join("\n"));
     }
 
     if (otherContent.length > 0) {
-        for (const content of otherContent) {
-            buffer.writeLine(content);
-        }
-        buffer.writeLine("");
+        sections.push(otherContent.join("\n\n"));
     }
 
     if (interfaces.length > 0) {
-        for (const interfaceDef of interfaces) {
-            for (const content of interfaceDef.lines) {
-                buffer.writeLine(content);
-            }
-            buffer.writeLine("");
-        }
+        sections.push(interfaces.map((entry) => entry.rawText).join("\n\n"));
     }
 
-    fs.writeFileSync(outputPath, buffer.toString());
+    fs.writeFileSync(outputPath, sections.join("\n\n") + "\n");
 };
 
 const posixpath = (path: string) => {
