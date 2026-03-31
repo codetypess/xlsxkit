@@ -171,4 +171,3 @@ export interface GeneratedItemTable {
     // map_field: Record<number | string, GeneratedItemMapFieldRow>;
     // map_obj: Record<number | string, GeneratedItemMapObjRow>;
 }
-

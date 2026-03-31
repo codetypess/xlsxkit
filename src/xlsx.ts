@@ -1,5 +1,5 @@
+import * as xlsx from "fastxlsx";
 import { basename, extname } from "path";
-import xlsx from "xlsx";
 import { type StringifyContext } from "./stringify";
 import { keys, values } from "./util";
 
@@ -361,6 +361,7 @@ export const toString = (cell?: TCell) => {
 const toLocation = (col: number, row: number) => {
     const COLUMN = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     let ret = "";
+    col = col - 1;
     while (true) {
         const c = col % 26;
         ret = COLUMN[c] + ret;
@@ -369,7 +370,7 @@ const toLocation = (col: number, row: number) => {
             break;
         }
     }
-    return `${ret}${row + 1}`;
+    return `${ret}${row}`;
 };
 
 export function registerType(typename: string, convertor: Convertor): void {
@@ -697,11 +698,14 @@ export const parseChecker = (
         .filter((v) => !!v);
 };
 
-const readCell = (sheetData: xlsx.WorkSheet, r: number, c: number) => {
-    const cell: TCell = sheetData[r]?.[c] ?? {};
-    cell.v = typeof cell.v === "string" ? cell.v.trim() : (cell.v ?? "");
-    cell.r = toLocation(c, r);
-    cell.t = undefined;
+const readCell = (sheet: xlsx.Sheet, r: number, c: number) => {
+    const value = sheet.getCell(r, c);
+    const v = typeof value === "string" ? value.trim() : (value ?? "");
+    const cell: TCell = {
+        v: v,
+        r: toLocation(c, r),
+        s: v.toString(),
+    };
     cell["!type"] = Type.Cell;
     return cell;
 };
@@ -710,7 +714,7 @@ export const makeCell = (v: TValue, t?: string, r?: string, s?: string) => {
     return { "!type": Type.Cell, v: v ?? null, t, r, s } as TCell;
 };
 
-const readHeader = (path: string, data: xlsx.WorkBook) => {
+const readHeader = (path: string, data: xlsx.Workbook) => {
     const ctx = getContext(DEFAULT_WRITER, DEFAULT_TAG)!;
     const requiredProcessors = Object.values(processors)
         .filter((p) => p.option.required)
@@ -727,19 +731,19 @@ const readHeader = (path: string, data: xlsx.WorkBook) => {
 
     let firstSheet: Sheet | null = null;
 
-    for (const sheetName of data.SheetNames) {
-        using _ = doing(`Reading sheet '${sheetName}' in '${path}'`);
-        const sheetData = data.Sheets[sheetName];
-        if (sheetName.startsWith("#") || !sheetData[0]) {
+    for (const rawSheet of data.getSheets()) {
+        using _ = doing(`Reading sheet '${rawSheet.name}' in '${path}'`);
+        const firstCell = rawSheet.getCell(1, 1);
+        if (rawSheet.name.startsWith("#") || !firstCell) {
             continue;
         }
 
-        if (!sheetName.match(/^[\w_]+$/)) {
-            error(`Invalid sheet name: '${sheetName}', only 'A-Za-z0-9_' are allowed`);
+        if (!rawSheet.name.match(/^[\w_]+$/)) {
+            error(`Invalid sheet name: '${rawSheet}', only 'A-Za-z0-9_' are allowed`);
         }
 
         const sheet: Sheet = {
-            name: sheetName,
+            name: rawSheet.name,
             ignore: false,
             processors: [],
             fields: [],
@@ -747,13 +751,14 @@ const readHeader = (path: string, data: xlsx.WorkBook) => {
         };
 
         sheet.data["!type"] = Type.Sheet;
-        sheet.data["!name"] = sheetName;
+        sheet.data["!name"] = rawSheet.name;
 
-        const str = toString(readCell(sheetData, 0, 0));
-        let start = 0;
+        const str = firstCell.toString().trim();
+        const colCount = rawSheet.columnCount;
+        let r = 1;
         if (str.startsWith("@")) {
             sheet.processors.push(...parseProcessor(str));
-            start = 1;
+            r = 2;
             for (const p of sheet.processors) {
                 if (requiredProcessors[p.name] !== undefined) {
                     requiredProcessors[p.name]++;
@@ -761,24 +766,23 @@ const readHeader = (path: string, data: xlsx.WorkBook) => {
             }
         }
 
-        if (!sheetData[start]) {
+        if (!rawSheet.getCell(r, 1)) {
             continue;
         }
 
         const parsed: Record<string, boolean> = {};
-        for (let c = 0; c < sheetData[start].length; c++) {
-            const r = start;
-            const name = toString(readCell(sheetData, r + 0, c));
-            const typename = toString(readCell(sheetData, r + 1, c));
-            const writer = toString(readCell(sheetData, r + 2, c));
-            const checker = toString(readCell(sheetData, r + 3, c));
-            const comment = toString(readCell(sheetData, r + 4, c));
+        for (let c = 1; c <= colCount; c++) {
+            const name = toString(readCell(rawSheet, r + 0, c));
+            const typename = toString(readCell(rawSheet, r + 1, c));
+            const writer = toString(readCell(rawSheet, r + 2, c));
+            const checker = toString(readCell(rawSheet, r + 3, c));
+            const comment = toString(readCell(rawSheet, r + 4, c));
 
             if (name && typename && writer !== "x") {
                 const arr = writer
                     .split("|")
                     .map((w) => w.trim())
-                    .filter((w) => c > 0 || !w.startsWith(">>"))
+                    .filter((w) => c > 1 || !w.startsWith(">>"))
                     .filter((w) => w)
                     .map((w) => {
                         if (!writerKeys.includes(w)) {
@@ -791,15 +795,15 @@ const readHeader = (path: string, data: xlsx.WorkBook) => {
                 }
                 parsed[name] = true;
                 sheet.fields.push({
-                    index: c,
+                    index: c - 1,
                     name,
                     typename,
                     writers: arr.length ? arr : writerKeys.slice(),
                     checkers: parseChecker(
                         basename(path),
-                        sheetName,
-                        `${toLocation(c, r + 3)}`,
-                        c,
+                        rawSheet.name,
+                        toLocation(c, r + 3),
+                        c - 1,
                         checker
                     ),
                     comment,
@@ -827,25 +831,23 @@ const readHeader = (path: string, data: xlsx.WorkBook) => {
     }
 };
 
-const readBody = (path: string, data: xlsx.WorkBook) => {
+const readBody = (path: string, data: xlsx.Workbook) => {
     const ctx = getContext(DEFAULT_WRITER, DEFAULT_TAG)!;
     const workbook = ctx.get(path);
-    for (const sheetName of data.SheetNames) {
-        if (!workbook.has(sheetName)) {
+    for (const rawSheet of data.getSheets()) {
+        if (!workbook.has(rawSheet.name)) {
             continue;
         }
-        using _ = doing(`Reading sheet '${sheetName}' in '${path}'`);
-        const sheetData = data.Sheets[sheetName];
-        const sheet = workbook.get(sheetName);
-        const start = toString(readCell(sheetData, 0, 0)).startsWith("@")
+        using _ = doing(`Reading sheet '${rawSheet.name}' in '${path}'`);
+        const sheet = workbook.get(rawSheet.name);
+        const start = toString(readCell(rawSheet, 1, 1)).startsWith("@")
             ? MAX_HEADERS
             : MAX_HEADERS - 1;
-        let maxRows = sheetData.length;
-        for (let r = sheetData.length - 1; r >= start; r--) {
-            const cell: TCell | undefined = sheetData[r]?.[0];
-            if (!cell || cell.v === "") {
-                maxRows = r;
-            } else {
+        let maxRows = rawSheet.rowCount;
+        for (let r = maxRows; r > start; r--) {
+            const cell: TCell | undefined = readCell(rawSheet, r, 1);
+            maxRows = r;
+            if (cell.v) {
                 break;
             }
         }
@@ -863,21 +865,21 @@ const readBody = (path: string, data: xlsx.WorkBook) => {
                 }
             }
         }
-        for (let r = start; r < maxRows; r++) {
+        for (let r = start + 1; r <= maxRows; r++) {
             const row: TRow = {};
             row["!type"] = Type.Row;
             for (const field of sheet.fields) {
-                const cell: TCell = readCell(sheetData, r, field.index);
+                const cell: TCell = readCell(rawSheet, r, field.index + 1);
                 if (field.typename === "auto") {
                     if (cell.v !== "-") {
-                        error(`Expected '-' at ${toLocation(0, r)}, but got '${cell.v}'`);
+                        error(`Expected '-' at ${toLocation(1, r)}, but got '${cell.v}'`);
                     }
-                    cell.v = r - start + 1;
+                    cell.v = r - start;
                 }
                 row[field.name] = cell;
                 if (field.index === 0) {
-                    sheet.data[r + 1] = row;
-                    if (field.name.startsWith("--")) {
+                    sheet.data[r] = row;
+                    if (field.name.startsWith("-")) {
                         ignoreField(row, field.name, true);
                         field.ignore = true;
                     }
@@ -1166,14 +1168,7 @@ export const parse = async (fs: string[], headerOnly: boolean = false) => {
     }
     for (const file of fs) {
         console.log(`reading: '${file}'`);
-        const data = xlsx.readFile(file, {
-            dense: true,
-            cellHTML: false,
-            cellFormula: false,
-            cellText: false,
-            raw: true,
-            sheetRows: headerOnly ? MAX_HEADERS : undefined,
-        });
+        const data = await xlsx.Workbook.open(file);
         readHeader(file, data);
         if (!headerOnly) {
             readBody(file, data);

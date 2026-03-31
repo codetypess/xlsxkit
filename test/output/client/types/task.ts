@@ -228,4 +228,3 @@ export interface GeneratedTaskTable {
     exchange: Record<number | string, GeneratedTaskExchangeRow>;
     weekly: Record<number | string, GeneratedTaskWeeklyRow>;
 }
-

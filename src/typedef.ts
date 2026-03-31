@@ -171,7 +171,7 @@ export const genXlsxType = (ctx: Context, resolver: TypeResolver) => {
             typeBuffer.writeLine(`export interface ${className} {`);
             typeBuffer.indent();
             for (const field of sheet.fields) {
-                if (field.name.startsWith("--")) {
+                if (field.name.startsWith("-")) {
                     continue;
                 }
                 const checker = field.checkers.map((v) => v.source).join(";");

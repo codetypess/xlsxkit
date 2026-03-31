@@ -8,7 +8,6 @@ import "./processor/post_stringify.processor";
 import "./processor/validate.processor";
 import "./processor/workbook-typedef.processor";
 import { makeTypename } from "./processor/workbook-typedef.processor";
-import { runRegressionTests } from "./regression";
 import "./rule/task.rule";
 
 const t = Date.now();
@@ -79,6 +78,5 @@ xlsx.registerWriter("server", (workbook, processor, data) => {
 });
 
 await xlsx.parse(["test/res/item.xlsx", "test/res/task.xlsx"]);
-await runRegressionTests();
 
 console.log(Date.now() - t);

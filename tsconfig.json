@@ -12,6 +12,9 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "./",

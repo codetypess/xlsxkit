@@ -330,10 +330,14 @@ export const mergeTypeFile = (srcPath: string, dstPath: string) => {
     const destContent = parseFile(dstPath);
     const mergedInterfaces = mergeInterfaces(srcContent.interfaces, destContent.interfaces);
     const mergedImports = mergeImports(srcContent.imports, destContent.imports);
+    const autoHeaderPattern = /^(\/\/ AUTO GENERATED[^\n]*\n\/\/ MERGED FROM[^\n]*\n\n?)+/;
+    const cleanOtherContent = destContent.otherContent
+        .map((text) => text.replace(autoHeaderPattern, "").trimStart())
+        .filter(Boolean);
     generateMergedTypeFile(
         mergedInterfaces,
         mergedImports,
-        destContent.otherContent,
+        cleanOtherContent,
         dstPath,
         posixpath(relative("./", dstPath)),
         posixpath(relative("./", srcPath))
