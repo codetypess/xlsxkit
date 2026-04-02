@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import * as xlsx from "..";
-import { ExprCheckerParser, IndexCheckerParser, SheetCheckerParser } from "../src/checker";
-import { mergeTypeFile } from "../src/validate";
+import * as xlsx from "../index.js";
+import { ExprCheckerParser, IndexCheckerParser, SheetCheckerParser } from "../src/checker.js";
+import { mergeTypeFile } from "../src/validate.js";
 
 const makeField = (name: string) => {
     return {
@@ -156,7 +156,11 @@ export const runRegressionTests = async () => {
         assert.deepEqual(errors, []);
 
         assert.throws(
-            () => ExprCheckerParser({} as xlsx.Context, 'constructor.constructor("return process")()'),
+            () =>
+                ExprCheckerParser(
+                    {} as xlsx.Context,
+                    'constructor.constructor("return process")()'
+                ),
             /Unexpected token|Invalid token/
         );
     }
@@ -210,7 +214,7 @@ export interface CustomExtra {
 
         mergeTypeFile(autoPath, mergedPath);
         const merged = fs.readFileSync(mergedPath, "utf-8");
-        assert.match(merged, /import type \{ ExtraType \} from "\.\/extra";/);
+        assert.match(merged, /import type \{ ExtraType \} from "\.\/extra\.js";/);
         assert.match(merged, /BarType/);
         assert.match(merged, /readonly args: Record<string, number \| string>; \/\/ override/);
         assert.match(merged, /readonly optional\?: FooType;/);

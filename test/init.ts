@@ -1,4 +1,4 @@
-import * as xlsx from "..";
+import * as xlsx from "../index.js";
 
 {
     xlsx.registerType("items", (value) => {

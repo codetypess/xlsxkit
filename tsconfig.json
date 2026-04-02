@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "module": "ESNext",
+    "module": "node16",
     "target": "ESNext",
-    "moduleResolution": "Node",
     "strict": true,
+    "moduleResolution": "node16",
     "noEmitHelpers": true,
     "noImplicitOverride": true,
     "noImplicitAny": true,

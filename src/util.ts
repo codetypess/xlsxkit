@@ -7,8 +7,8 @@ import {
     stringifyLua,
     stringifyTs,
     TsStringifyOption,
-} from "./stringify";
-import type { TCell, TObject, TValue } from "./xlsx";
+} from "./stringify.js";
+import type { TCell, TObject, TValue } from "./xlsx.js";
 
 export const isNumericKey = (key: string) => {
     if (typeof key !== "string") return false;

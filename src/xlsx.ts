@@ -1,7 +1,7 @@
 import * as xlsx from "fastxlsx";
 import { basename, extname } from "path";
-import { type StringifyContext } from "./stringify";
-import { keys, values } from "./util";
+import { type StringifyContext } from "./stringify.js";
+import { keys, values } from "./util.js";
 
 export const enum Type {
     Row = "xlsx.type.row",

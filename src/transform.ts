@@ -1,5 +1,5 @@
-import { RowIndexer } from "./indexer";
-import { values } from "./util";
+import { RowIndexer } from "./indexer.js";
+import { values } from "./util.js";
 import {
     Sheet,
     TArray,
@@ -13,7 +13,7 @@ import {
     convertValue,
     isNotNull,
     toString,
-} from "./xlsx";
+} from "./xlsx.js";
 
 export const defineSheet = (workbook: Workbook, sheet: Sheet) => {
     checkType(sheet.data, Type.Sheet);
@@ -142,7 +142,9 @@ export const mapSheet = (workbook: Workbook, sheet: Sheet, value: string, ...key
                 for (const k of ks) {
                     const v = row[k];
                     if (!v) {
-                        throw new Error(`${workbook.context.tag} ${workbook.name}.${sheet.name} Key '${k}' is not found`);
+                        throw new Error(
+                            `${workbook.context.tag} ${workbook.name}.${sheet.name} Key '${k}' is not found`
+                        );
                     }
                     if (isObject) {
                         (result as TObject)[k] = v;
@@ -153,7 +155,9 @@ export const mapSheet = (workbook: Workbook, sheet: Sheet, value: string, ...key
                 return result;
             };
         } else {
-            throw new Error(`${workbook.context.tag} ${workbook.name}.${sheet.name} Invalid value query: ${value}`);
+            throw new Error(
+                `${workbook.context.tag} ${workbook.name}.${sheet.name} Invalid value query: ${value}`
+            );
         }
     })();
 
@@ -164,7 +168,9 @@ export const mapSheet = (workbook: Workbook, sheet: Sheet, value: string, ...key
         for (let i = 0; i < keys.length; i++) {
             const key = (row[keys[i]]?.v ?? "") as string;
             if (key === "") {
-                throw new Error(`${workbook.context.tag} ${workbook.name}.${sheet.name} Key '${keys[i]}' is not found`);
+                throw new Error(
+                    `${workbook.context.tag} ${workbook.name}.${sheet.name} Key '${keys[i]}' is not found`
+                );
             }
             if (i === keys.length - 1) {
                 t[key] = queryValue(row);

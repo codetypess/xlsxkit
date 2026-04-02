@@ -1,6 +1,6 @@
-import { StringBuffer } from "./stringify";
-import { toPascalCase } from "./util";
-import { Context, convertors, Workbook } from "./xlsx";
+import { StringBuffer } from "./stringify.js";
+import { toPascalCase } from "./util.js";
+import { Context, convertors, Workbook } from "./xlsx.js";
 
 const basicTypes = ["string", "number", "boolean", "unknown", "object"];
 

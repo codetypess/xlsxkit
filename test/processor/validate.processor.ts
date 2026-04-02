@@ -1,10 +1,10 @@
 import crypto from "crypto";
 import fs from "fs";
 import { basename, dirname, join, normalize, resolve } from "path";
-import * as xlsx from "../../";
-import { mergeTypeFile, validateJson } from "../../src/validate";
+import * as xlsx from "../../index.js";
+import { mergeTypeFile, validateJson } from "../../src/validate.js";
 
-const VERSION = "v1";
+const VERSION = "v2";
 
 let initedSchema = false;
 
@@ -78,18 +78,6 @@ const rm = (path: string) => {
     }
 };
 
-const read = (path: string) => {
-    return fs.readFileSync(path, "utf-8");
-};
-
-const write = (path: string, content: string) => {
-    const dir = dirname(path);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(path, content);
-};
-
 const genSchema = async () => {
     const arr: { name: string; input: string; output: string }[] = [];
 
@@ -144,11 +132,6 @@ const genSchema = async () => {
         if (anyCount > 0 || unknownCount > 0) {
             throw new Error(`路径：${v.output} 拥有 'z.any' 或 'z.unknown' 类型, 请先解决这个问题`);
         }
-        const mergedTypeContent = read(v.output).split("\n");
-        Array.from(read(v.input).matchAll(/export \* from "[^"]+";/g)).forEach((m) => {
-            mergedTypeContent.push(m[0].replace('";', '.schema";'));
-        });
-        write(v.output, mergedTypeContent.join("\n"));
         md5Json["version"] = VERSION;
         md5Json[v.input] = calcFileMd5(v.input);
         md5Json[v.output] = calcFileMd5(v.output);

@@ -1,5 +1,5 @@
 import JSON5 from "json5";
-import { Convertor } from "./xlsx";
+import { Convertor } from "./xlsx.js";
 
 const bools: Record<string, boolean> = {
     ["true"]: true,

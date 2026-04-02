@@ -7,14 +7,14 @@ import {
     SheetCheckerParser,
     SizeCheckerParser,
     UniqueCheckerParser,
-} from "./src/checker";
+} from "./src/checker.js";
 import {
     boolConvertor,
     floatConvertor,
     intConvertor,
     jsonConvertor,
     stringConvertor,
-} from "./src/convertor";
+} from "./src/convertor.js";
 import {
     AutoRegisterProcessor,
     CollapseProcessor,
@@ -27,21 +27,21 @@ import {
     registerStringify,
     simpleSheet,
     StringifyProcessor,
-} from "./src/processor";
-import { tableConvertor } from "./src/table";
-import { BuiltinChecker, registerChecker, registerProcessor, registerType } from "./src/xlsx";
+} from "./src/processor.js";
+import { tableConvertor } from "./src/table.js";
+import { BuiltinChecker, registerChecker, registerProcessor, registerType } from "./src/xlsx.js";
 
-export * from "./src/checker";
-export * from "./src/convertor";
-export * from "./src/indexer";
-export * from "./src/processor";
-export * from "./src/stringify";
-export * from "./src/table";
-export * from "./src/transform";
-export * from "./src/typedef";
-export * from "./src/util";
-export * from "./src/xlsx";
-export * from "./src/zod";
+export * from "./src/checker.js";
+export * from "./src/convertor.js";
+export * from "./src/indexer.js";
+export * from "./src/processor.js";
+export * from "./src/stringify.js";
+export * from "./src/table.js";
+export * from "./src/transform.js";
+export * from "./src/typedef.js";
+export * from "./src/util.js";
+export * from "./src/xlsx.js";
+export * from "./src/zod.js";
 
 registerType("auto", intConvertor);
 registerType("bool", boolConvertor);

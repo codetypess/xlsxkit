@@ -1,8 +1,8 @@
 import { basename } from "path";
-import { StringBuffer } from "./stringify";
-import { TypeImporter, TypeResolver } from "./typedef";
-import { format, keys, toPascalCase } from "./util";
-import { checkType, Context, isNotNull, TCell, TRow, Type, Workbook } from "./xlsx";
+import { StringBuffer } from "./stringify.js";
+import { TypeImporter, TypeResolver } from "./typedef.js";
+import { format, keys, toPascalCase } from "./util.js";
+import { checkType, Context, isNotNull, TCell, TRow, Type, Workbook } from "./xlsx.js";
 
 /** string '2' and number 2 are considered the same */
 const isSame = (a: unknown, b: unknown) => {

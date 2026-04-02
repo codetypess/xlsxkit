@@ -36,6 +36,26 @@ interface FileDesc {
 }
 
 const trimBlock = (value: string) => value.replace(/^\s+|\s+$/g, "");
+const isRelativeImport = (value: string) => value.startsWith("./") || value.startsWith("../");
+
+const normalizeImportPath = (value: string) => {
+    if (!isRelativeImport(value)) {
+        return value;
+    }
+    if (value.endsWith("/")) {
+        return `${value}index.js`;
+    }
+    if (value.endsWith(".schema")) {
+        return `${value}.js`;
+    }
+    if (/\.(mts|cts|tsx?|mjs|cjs|js)$/.test(value)) {
+        return value.replace(/\.(mts|cts|tsx?|mjs|cjs|js)$/, ".js");
+    }
+    if (!/\.[^/]+$/.test(value)) {
+        return `${value}.js`;
+    }
+    return value;
+};
 
 const getCommentText = (sourceFile: ts.SourceFile, node: ts.Node) => {
     const jsDoc = (node as ts.Node & { jsDoc?: readonly ts.JSDoc[] }).jsDoc;
@@ -59,7 +79,7 @@ const hasOverrideComment = (sourceFile: ts.SourceFile, node: ts.Node) => {
 };
 
 const parseImport = (sourceFile: ts.SourceFile, node: ts.ImportDeclaration): ImportDesc => {
-    const path = (node.moduleSpecifier as ts.StringLiteral).text;
+    const path = normalizeImportPath((node.moduleSpecifier as ts.StringLiteral).text);
     const clause = node.importClause;
     if (!clause) {
         return {

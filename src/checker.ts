@@ -1,6 +1,6 @@
-import { ColumnIndexer, RowFilter } from "./indexer";
-import { keys } from "./util";
-import { CheckerParser, Context, convertValue, error, TCell, TObject, TValue } from "./xlsx";
+import { ColumnIndexer, RowFilter } from "./indexer.js";
+import { keys } from "./util.js";
+import { CheckerParser, Context, convertValue, error, TCell, TObject, TValue } from "./xlsx.js";
 
 export const SizeCheckerParser: CheckerParser = (ctx, arg) => {
     const length = Number(arg);

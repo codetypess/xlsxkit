@@ -1,4 +1,4 @@
-import * as xlsx from "../../";
+import * as xlsx from "../../index.js";
 let done = false;
 
 export const makeTypename = (name: string) => {
@@ -21,12 +21,12 @@ xlsx.registerProcessor(
                 if (typename === "TCell") {
                     return {
                         type: "TCell as _TCell",
-                        path: "../../",
+                        path: "../../index.js",
                     };
                 }
                 return {
                     type: makeTypename(typename),
-                    path: "./client/define/index",
+                    path: "./client/define/index.js",
                 };
             })
         );

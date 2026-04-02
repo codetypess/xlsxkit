@@ -5,7 +5,7 @@ import {
     BagType,
     ItemType,
     QualityType,
-} from "../define/index";
+} from "../define/index.js";
 
 type ItemArgs = Record<string, number> | number[][];
 

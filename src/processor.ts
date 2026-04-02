@@ -5,8 +5,8 @@ import {
     decltype,
     defineSheet,
     mapSheet,
-} from "./transform";
-import { keys, values } from "./util";
+} from "./transform.js";
+import { keys, values } from "./util.js";
 import {
     assert,
     convertors,
@@ -20,7 +20,7 @@ import {
     TValue,
     Workbook,
     write,
-} from "./xlsx";
+} from "./xlsx.js";
 
 export type StringifyRule = (workbook: Workbook) => object;
 const rules: Record<string, StringifyRule> = {};

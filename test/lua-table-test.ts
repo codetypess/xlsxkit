@@ -1,4 +1,4 @@
-import { tableConvertor } from "../src/table";
+import { tableConvertor } from "../src/table.js";
 
 const tryParse = (str: string) => {
     try {

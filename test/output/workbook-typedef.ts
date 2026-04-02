@@ -2,14 +2,14 @@
 
 import {
     TCell as _TCell,
-} from "../../";
+} from "../../index.js";
 import {
     BagType,
     ItemType,
     Items,
     QualityType,
     TaskType,
-} from "./client/define/index";
+} from "./client/define/index.js";
 
 type TCell = Omit<_TCell, "v">;
 

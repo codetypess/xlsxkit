@@ -1,14 +1,13 @@
 import * as fs from "fs";
-import * as xlsx from "..";
-import { defines, types } from "./processor/post_stringify.processor";
-
-import "./init";
-import "./processor/gen-indexer.processor";
-import "./processor/post_stringify.processor";
-import "./processor/validate.processor";
-import "./processor/workbook-typedef.processor";
-import { makeTypename } from "./processor/workbook-typedef.processor";
-import "./rule/task.rule";
+import * as xlsx from "../index.js";
+import "./init.js";
+import "./processor/gen-indexer.processor.js";
+import "./processor/post_stringify.processor.js";
+import { defines, types } from "./processor/post_stringify.processor.js";
+import "./processor/validate.processor.js";
+import "./processor/workbook-typedef.processor.js";
+import { makeTypename } from "./processor/workbook-typedef.processor.js";
+import "./rule/task.rule.js";
 
 const t = Date.now();
 
@@ -32,7 +31,7 @@ xlsx.registerWriter("client", (workbook, processor, data) => {
         const content = xlsx.genTsType(workbook, (typename) => {
             return {
                 type: makeTypename(typename),
-                path: "../define/index",
+                path: "../define/index.js",
             };
         });
         xlsx.writeFile(`build/client/types/${workbook.name}.ts`, content);

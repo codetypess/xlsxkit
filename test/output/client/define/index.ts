@@ -1,5 +1,5 @@
 // AUTO GENERATED, DO NOT MODIFY!
 
-export * from "./ItemDefine";
-export * from "./TaskDefine";
-export * from "./custom";
+export * from "./ItemDefine.js";
+export * from "./TaskDefine.js";
+export * from "./custom.js";

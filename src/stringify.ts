@@ -1,5 +1,5 @@
-import { escape, isNumericKey, keys } from "./util";
-import { TArray, TCell, TObject, TValue, Type, checkType, isNotNull } from "./xlsx";
+import { escape, isNumericKey, keys } from "./util.js";
+import { TArray, TCell, TObject, TValue, Type, checkType, isNotNull } from "./xlsx.js";
 
 export class StringBuffer {
     readonly data: string[] = [];

@@ -1,5 +1,5 @@
-import * as xlsx from "../..";
-import { makeTypename } from "./workbook-typedef.processor";
+import * as xlsx from "../../index.js";
+import { makeTypename } from "./workbook-typedef.processor.js";
 
 let done = false;
 
@@ -14,12 +14,12 @@ xlsx.registerProcessor(
             if (["ColumnIndexer", "RowIndexer", "Context"].includes(typename)) {
                 return {
                     type: typename,
-                    path: "../../",
+                    path: "../../index.js",
                 };
             } else {
                 return {
                     type: makeTypename(typename),
-                    path: "./workbook-typedef",
+                    path: "./workbook-typedef.js",
                 };
             }
         });

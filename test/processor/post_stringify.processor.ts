@@ -1,4 +1,4 @@
-import * as xlsx from "../../";
+import * as xlsx from "../../index.js";
 
 export const defines: Set<string> = new Set();
 export const types: Set<string> = new Set();
@@ -15,10 +15,10 @@ const writeDefines = () => {
             // AUTO GENERATED, DO NOT MODIFY!
 
             %{defines}
-            export * from "./custom";
+            export * from "./custom.js";
             `,
             {
-                defines: imports.map((d) => `export * from "./${d}";`).join("\n"),
+                defines: imports.map((d) => `export * from "./${d}.js";`).join("\n"),
             }
         )
     );
@@ -32,11 +32,11 @@ const writeTypes = () => {
             `
             // AUTO GENERATED, DO NOT MODIFY!
 
-            export * from "../define/index";
+            export * from "../define/index.js";
             %{types}
             `,
             {
-                types: imports.map((t) => `export * from "./${t}";`).join("\n"),
+                types: imports.map((t) => `export * from "./${t}.js";`).join("\n"),
             }
         )
     );
