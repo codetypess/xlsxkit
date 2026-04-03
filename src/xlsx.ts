@@ -6,16 +6,6 @@ import { DEFAULT_TAG, DEFAULT_WRITER } from "./core/registry.js";
 import { write } from "./core/write.js";
 import { Context, Workbook } from "./core/workbook.js";
 
-export * from "./core/context-store.js";
-export * from "./core/contracts.js";
-export * from "./core/conversion.js";
-export * from "./core/errors.js";
-export * from "./core/registry.js";
-export * from "./core/schema.js";
-export * from "./core/value.js";
-export * from "./core/write.js";
-export * from "./core/workbook.js";
-
 export const parse = async (fs: string[], headerOnly: boolean = false) => {
     const ctx = addContext(new Context(DEFAULT_WRITER, DEFAULT_TAG));
     for (const file of fs) {

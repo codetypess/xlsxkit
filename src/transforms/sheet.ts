@@ -1,7 +1,6 @@
 import { RowIndexer } from "../indexer.js";
 import { convertValue } from "../core/conversion.js";
 import { assert } from "../core/errors.js";
-import { convertors } from "../core/registry.js";
 import { type Sheet, type TArray, type TObject, type TRow, type TValue, Type } from "../core/schema.js";
 import { checkType, isNotNull, toString } from "../core/value.js";
 import { Workbook } from "../core/workbook.js";
@@ -130,16 +129,6 @@ const splitTypename = (typename: string) => {
     };
 };
 
-const composeTypename = (base: string, array: string, optional: boolean) => {
-    return `${base}${array}${optional ? "?" : ""}`;
-};
-
-const normalizeSourceTypename = (typename: string) => {
-    const meta = splitTypename(typename);
-    const base = meta.base === "auto" ? "int" : meta.base;
-    return composeTypename(base, meta.array, meta.optional);
-};
-
 const tryParseLiteral = (typename: string) => {
     if (!typename.startsWith("#")) {
         return null;
@@ -151,75 +140,15 @@ const tryParseLiteral = (typename: string) => {
     return raw;
 };
 
-const buildTypedefDatasource = (workbook: Workbook, currentSheet: Sheet) => {
-    const sources = new Map<string, Set<string>>();
-    const locations = new Map<string, string[]>();
-
-    for (const sourceWorkbook of workbook.context.workbooks) {
-        for (const sourceSheet of sourceWorkbook.sheets) {
-            if (sourceWorkbook.path === workbook.path && sourceSheet.name === currentSheet.name) {
-                continue;
-            }
-            if (sourceSheet.processors.some((processor) => processor.name === "typedef")) {
-                continue;
-            }
-            for (const field of sourceSheet.fields) {
-                if (field.name.startsWith("-")) {
-                    continue;
-                }
-                const typename = normalizeSourceTypename(field.typename);
-                sources.set(field.name, (sources.get(field.name) ?? new Set()).add(typename));
-                locations.set(field.name, [
-                    ...(locations.get(field.name) ?? []),
-                    `${sourceWorkbook.path}#${sourceSheet.name}.${field.name}`,
-                ]);
-            }
-        }
-    }
-
-    return {
-        resolve(name: string) {
-            const types = Array.from(sources.get(name) ?? []);
-            if (types.length === 0) {
-                return null;
-            }
-            assert(
-                types.length === 1,
-                `Typedef type source '${name}' is ambiguous: ${(locations.get(name) ?? []).join(
-                    ", "
-                )}`
-            );
-            return types[0];
-        },
-    };
-};
-
-const resolveTypedefType = (
-    workbook: Workbook,
-    sheet: Sheet,
-    datasource: ReturnType<typeof buildTypedefDatasource>,
-    localTypes: ReadonlySet<string>,
-    rawType: string
-) => {
+const resolveTypedefType = (rawType: string) => {
     const meta = splitTypename(rawType);
     if (meta.base.startsWith("#")) {
         assert(
             meta.array.length === 0 && !meta.optional,
             `Literal typedef field '${rawType}' is not allowed to use array or optional suffix`
         );
-        return rawType;
     }
-    if (localTypes.has(meta.base) || convertors[meta.base]) {
-        return rawType;
-    }
-    const sourceType = datasource.resolve(meta.base);
-    assert(!!sourceType, `Typedef type '${meta.base}' not found in ${workbook.path}#${sheet.name}`);
-    const sourceMeta = splitTypename(sourceType);
-    return composeTypename(
-        sourceMeta.base,
-        meta.array || sourceMeta.array,
-        meta.optional || sourceMeta.optional
-    );
+    return rawType;
 };
 
 export const typedefSheet = (workbook: Workbook, sheet: Sheet): TypedefWorkbook => {
@@ -321,8 +250,6 @@ export const typedefSheet = (workbook: Workbook, sheet: Sheet): TypedefWorkbook 
         });
     }
 
-    const localTypes = new Set(order);
-    const datasource = buildTypedefDatasource(workbook, sheet);
     const types = order.map((name) => {
         const draft = drafts.get(name)!;
         if (draft.kind === "union") {
@@ -339,13 +266,7 @@ export const typedefSheet = (workbook: Workbook, sheet: Sheet): TypedefWorkbook 
             name: draft.name,
             comment: draft.comment,
             fields: draft.fields.map((field) => {
-                const type = resolveTypedefType(
-                    workbook,
-                    sheet,
-                    datasource,
-                    localTypes,
-                    field.rawType
-                );
+                const type = resolveTypedefType(field.rawType);
                 return {
                     name: field.name,
                     comment: field.comment,
