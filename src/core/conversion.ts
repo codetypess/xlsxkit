@@ -1,5 +1,5 @@
-import { convertors } from "./registry.js";
 import { error } from "./errors.js";
+import { convertors } from "./registry.js";
 import { Type, type TCell, type TValue } from "./schema.js";
 
 const tokenizeArray = (str: string) => {

@@ -1,25 +1,20 @@
 import { RowIndexer } from "../indexer.js";
-import {
-    TypedefField,
-    TypedefObject,
-    TypedefUnion,
-    TypedefWorkbook,
-} from "../typedef.js";
+import { TypedefField, TypedefObject, TypedefUnion, TypedefWorkbook } from "../typedef.js";
 import { values } from "../util.js";
 import {
-    Sheet,
-    TArray,
-    TObject,
-    TRow,
-    TValue,
-    Type,
-    Workbook,
     assert,
     checkType,
     convertors,
     convertValue,
     isNotNull,
+    Sheet,
+    TArray,
+    TObject,
     toString,
+    TRow,
+    TValue,
+    Type,
+    Workbook,
 } from "../xlsx.js";
 
 export const defineSheet = (workbook: Workbook, sheet: Sheet) => {
@@ -353,7 +348,13 @@ export const typedefSheet = (workbook: Workbook, sheet: Sheet): TypedefWorkbook 
             name: draft.name,
             comment: draft.comment,
             fields: draft.fields.map((field) => {
-                const type = resolveTypedefType(workbook, sheet, datasource, localTypes, field.rawType);
+                const type = resolveTypedefType(
+                    workbook,
+                    sheet,
+                    datasource,
+                    localTypes,
+                    field.rawType
+                );
                 return {
                     name: field.name,
                     comment: field.comment,

@@ -390,8 +390,8 @@ function emitInterfaceSchema(stmt: ts.InterfaceDeclaration, ctx: GenContext): st
 /** Kinds that cannot be meaningfully represented as a Zod schema. */
 const UNSUPPORTED_TYPE_KINDS = new Set([
     ts.SyntaxKind.ConditionalType, // T extends U ? X : Y
-    ts.SyntaxKind.MappedType,      // { [K in T]: V }
-    ts.SyntaxKind.InferType,       // infer T
+    ts.SyntaxKind.MappedType, // { [K in T]: V }
+    ts.SyntaxKind.InferType, // infer T
 ]);
 
 function emitTypeAliasSchema(stmt: ts.TypeAliasDeclaration, ctx: GenContext): string[] {
