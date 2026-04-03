@@ -1,4 +1,4 @@
-# XLSX Exporter
+# XLSX TO
 
 将遵循固定表头约定的 `.xlsx` 工作簿转换为可校验的数据模型，并按需输出为 JSON、TypeScript、Lua 等文件。
 
@@ -33,7 +33,7 @@ npm run test
 2. 调用 `parse()` 读取工作簿并触发转换、校验和输出。
 
 ```ts
-import * as xlsx from "xlsx-exporter";
+import * as xlsx from "xlsx-to";
 
 const OUTPUT_DIR = "output";
 
@@ -354,7 +354,7 @@ typedef Sheet 至少需要这些字段：
 | `genLuaTypedef()`      | 为 typedef workbook 生成 Lua 类型        |
 | `genXlsxType()`        | 为整个 context 生成汇总 TypeScript 类型  |
 | `genWorkbookIndexer()` | 生成 workbook 查询器                     |
-| `tsToZod()`            | 将 TypeScript 类型文件转成 Zod schema                    |
+| `tsToZod()`            | 将 TypeScript 类型文件转成 Zod schema    |
 
 ## 自定义扩展
 

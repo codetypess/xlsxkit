@@ -1,8 +1,29 @@
 {
-  "exports": {
-    ".": "./index.ts"
+  "name": "xlsx-to",
+  "version": "0.2.0",
+  "description": "Parse xlsx workbooks and export typed client/server assets.",
+  "main": "./dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codetypess/xlsx-to.git"
   },
-  "types": "./index.ts",
+  "bugs": {
+    "url": "https://github.com/codetypess/xlsx-to/issues"
+  },
+  "homepage": "https://github.com/codetypess/xlsx-to#readme",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/**/*.d.ts",
+    "dist/**/*.js",
+    "README.md"
+  ],
+  "types": "./dist/index.d.ts",
   "type": "module",
   "dependencies": {
     "fastxlsx": "^1.0.0",
@@ -12,7 +33,10 @@
     "zod": "^4.1.12"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check",
     "test": "tsx test/test.ts"
   },
   "devDependencies": {

@@ -3,7 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as xlsx from "../index.js";
-import { ExprCheckerParser, IndexCheckerParser, SheetCheckerParser } from "../src/builtins/checkers.js";
+import {
+    ExprCheckerParser,
+    IndexCheckerParser,
+    SheetCheckerParser,
+} from "../src/builtins/checkers.js";
 import { mergeTypeFile } from "../src/tooling/validate.js";
 
 const makeField = (name: string) => {
@@ -166,7 +170,7 @@ export const runRegressionTests = async () => {
     }
 
     {
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "xlsx-exporter-regression-"));
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "xlsx-regression-"));
         const autoPath = path.join(dir, "auto.ts");
         const mergedPath = path.join(dir, "merged.ts");
 
