@@ -5,10 +5,10 @@ import { BuiltinChecker, type CheckerContext } from "./contracts.js";
 import { assert, doing, error } from "./errors.js";
 import {
     checkerParsers,
-    options,
     type ProcessorOption,
     processors,
     type ProcessorType,
+    settings,
     writers,
 } from "./registry.js";
 import { type Field, type Sheet, type TCell, type TObject, type TRow, Type } from "./schema.js";
@@ -55,7 +55,7 @@ export const resolveChecker = () => {
 export const copyWorkbook = () => {
     for (const ctx of getContexts().slice()) {
         for (const writer in writers) {
-            if (options.suppressWriters.includes(writer)) {
+            if (settings.suppressWriters.has(writer)) {
                 continue;
             }
             console.log(`creating context: writer=${writer} tag=${ctx.tag}`);
@@ -123,7 +123,7 @@ const invokeReferChecker = (
 
 const invokeChecker = (workbook: Workbook, sheet: Sheet, field: Field, errors: string[]) => {
     const checkers = (field.checkers as CheckerType[]).filter(
-        (c) => !options.suppressCheckers.includes(c.name)
+        (c) => !settings.suppressCheckers.has(c.name)
     );
     const ctx: CheckerContext = {
         workbook,
@@ -220,10 +220,7 @@ export const performProcessor = async (stage: ProcessorOption["stage"], writer?:
             for (const sheet of workbook.sheets) {
                 for (const { name, args } of sheet.processors) {
                     const processor = processors[name];
-                    if (
-                        processor.option.stage !== stage ||
-                        options.suppressProcessors.includes(name)
-                    ) {
+                    if (processor.option.stage !== stage || settings.suppressProcessors.has(name)) {
                         continue;
                     }
                     arr.push({

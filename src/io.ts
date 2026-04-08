@@ -1,6 +1,8 @@
 import * as fs from "node:fs";
 import { dirname } from "node:path";
-import type { TValue } from "./core/schema.js";
+import { writers } from "./core/registry.js";
+import type { TArray, TObject, TValue } from "./core/schema.js";
+import { type Workbook, assert } from "./public.js";
 import {
     JsonStringifyOption,
     LuaStringifyOption,
@@ -49,4 +51,10 @@ export const writeTs = (path: string, data: unknown, options?: TsStringifyOption
     options.indent = options.indent ?? 2;
     options.precision = options.precision ?? 10;
     writeFile(path, stringifyTs(data as TValue, options));
+};
+
+export const write = (workbook: Workbook, processor: string, data: object) => {
+    const writer = workbook.context.writer;
+    assert(!!writers[writer], `Writer not found: ${writer}`);
+    writers[writer](workbook, processor, data as TObject | TArray);
 };

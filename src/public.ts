@@ -24,6 +24,10 @@ export {
     registerProcessor,
     registerType,
     registerWriter,
+    suppressAllCheckers,
+    suppressChecker,
+    suppressProcessor,
+    suppressWriter,
     type ProcessorOption,
     type ProcessorStage,
 } from "./core/registry.js";
@@ -38,16 +42,27 @@ export {
     type TRow,
     type TValue,
 } from "./core/schema.js";
-export { checkType, isNotNull, isNull } from "./core/value.js";
+export {
+    checkType,
+    copyTag,
+    ignoreField,
+    isNotNull,
+    isNull,
+    toString,
+    typeOf,
+} from "./core/value.js";
 export { Context, Workbook } from "./core/workbook.js";
 export { ColumnIndexer, genWorkbookIndexer, RowIndexer, type RowFilter } from "./indexer.js";
-export { readFile, writeFile, writeJson, writeLua, writeTs } from "./io.js";
+export { readFile, write, writeFile, writeJson, writeLua, writeTs } from "./io.js";
 export {
+    StringBuffer,
     stringifyJson,
     stringifyLua,
     stringifyTs,
+    stringifyTsType,
     type JsonStringifyOption,
     type LuaStringifyOption,
+    type StringifyContext,
     type TsStringifyOption,
 } from "./stringify.js";
 export { mergeTypeFile, validateJson } from "./tooling/validate.js";

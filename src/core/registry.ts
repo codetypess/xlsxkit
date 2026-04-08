@@ -1,5 +1,5 @@
-import { assert } from "./errors.js";
 import type { CheckerParser, Convertor, Processor, Writer } from "./contracts.js";
+import { assert } from "./errors.js";
 
 export type ProcessorStage =
     | "after-read"
@@ -25,11 +25,11 @@ export type ProcessorType = {
     readonly exec: Processor;
 };
 
-export const options = {
-    suppressCheckers: [] as string[],
-    suppressProcessors: [] as string[],
-    suppressWriters: [] as string[],
-};
+export const settings = {
+    suppressCheckers: new Set<string>(),
+    suppressProcessors: new Set<string>(),
+    suppressWriters: new Set<string>(),
+} as const;
 
 export const DEFAULT_WRITER = "__xlsx_default_writer__";
 export const DEFAULT_TAG = "__xlsx_default_tag__";
@@ -53,6 +53,14 @@ export const registerChecker = (name: string, parser: CheckerParser) => {
     checkerParsers[name] = parser;
 };
 
+export const suppressChecker = (name: string) => {
+    settings.suppressCheckers.add(name);
+};
+
+export const suppressAllCheckers = () => {
+    Object.keys(checkerParsers).forEach(suppressChecker);
+};
+
 export const registerProcessor = (
     name: string,
     processor: Processor,
@@ -72,9 +80,17 @@ export const registerProcessor = (
     };
 };
 
+export const suppressProcessor = (name: string) => {
+    settings.suppressProcessors.add(name);
+};
+
 export const registerWriter = (name: string, writer: Writer) => {
     if (writers[name]) {
         console.warn(`Overwrite previous registered writer '${name}'`);
     }
     writers[name] = writer;
+};
+
+export const suppressWriter = (name: string) => {
+    settings.suppressWriters.add(name);
 };
