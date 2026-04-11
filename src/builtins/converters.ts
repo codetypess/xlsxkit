@@ -1,5 +1,5 @@
 import JSON5 from "json5";
-import { Converter } from "../core/contracts.js";
+import { Converter } from "../core/contracts";
 
 const bools: Record<string, boolean> = {
     ["true"]: true,

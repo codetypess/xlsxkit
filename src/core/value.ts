@@ -1,4 +1,4 @@
-import { Type, type Tag, type TCell, type TObject, type TValue } from "./schema.js";
+import { Type, type Tag, type TCell, type TObject, type TValue } from "./schema";
 
 export const copyTag = (src: object & Tag, dest: object & Tag) => {
     Object.keys(src)

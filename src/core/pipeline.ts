@@ -1,8 +1,7 @@
-import { values } from "../util.js";
-import { addContext, clearRunningContext, getContexts, setRunningContext } from "./context.js";
-import type { CheckerType } from "./contracts.js";
-import { BuiltinChecker, type CheckerContext } from "./contracts.js";
-import { assert, error, trace } from "./errors.js";
+import { values } from "../util";
+import type { CheckerType } from "./contracts";
+import { BuiltinChecker, type CheckerContext } from "./contracts";
+import { assert, error, trace } from "./errors";
 import {
     checkerParsers,
     type ProcessorOption,
@@ -10,10 +9,17 @@ import {
     type ProcessorType,
     settings,
     writers,
-} from "./registry.js";
-import { type Field, type Sheet, type TCell, type TObject, type TRow, Type } from "./schema.js";
-import { checkType, copyTag } from "./value.js";
-import { Context, Workbook } from "./workbook.js";
+} from "./registry";
+import { type Field, type Sheet, type TCell, type TObject, type TRow, Type } from "./schema";
+import { checkType, copyTag } from "./value";
+import {
+    addContext,
+    clearRunningContext,
+    Context,
+    getContexts,
+    setRunningContext,
+    Workbook,
+} from "./workbook";
 
 const MAX_ERRORS = 50;
 

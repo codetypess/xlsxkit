@@ -1,5 +1,5 @@
-import type { StringifyContext } from "../stringify.js";
-import type { CheckerType } from "./contracts.js";
+import type { StringifyContext } from "../stringify";
+import type { CheckerType } from "./contracts";
 
 export const enum Type {
     Row = "xlsx.type.row",

@@ -1,9 +1,9 @@
 import * as fs from "node:fs";
 import { dirname } from "node:path";
-import { assert } from "./core/errors.js";
-import { writers } from "./core/registry.js";
-import type { TArray, TObject, TValue } from "./core/schema.js";
-import type { Workbook } from "./core/workbook.js";
+import { assert } from "./core/errors";
+import { writers } from "./core/registry";
+import type { TArray, TObject, TValue } from "./core/schema";
+import type { Workbook } from "./core/workbook";
 import {
     JsonStringifyOption,
     LuaStringifyOption,
@@ -11,7 +11,7 @@ import {
     stringifyLua,
     stringifyTs,
     TsStringifyOption,
-} from "./stringify.js";
+} from "./stringify";
 
 export const readFile = (path: string) => {
     if (fs.existsSync(path)) {
@@ -54,7 +54,7 @@ export const writeTs = (path: string, data: unknown, options?: TsStringifyOption
     writeFile(path, stringifyTs(data as TValue, options));
 };
 
-export const write = (workbook: Workbook, processor: string, data: object) => {
+export const output = (workbook: Workbook, processor: string, data: object) => {
     const writer = workbook.context.writer;
     assert(!!writers[writer], `Writer not found: ${writer}`);
     writers[writer](workbook, processor, data as TObject | TArray);

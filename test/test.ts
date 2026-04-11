@@ -1,14 +1,14 @@
 import * as fs from "fs";
-import * as xlsx from "../index.js";
+import * as xlsx from "../index";
 import "./init.js";
 import "./processor/gen-indexer.processor.js";
 import "./processor/post_stringify.processor.js";
-import { defines, types } from "./processor/post_stringify.processor.js";
+import { defines, types } from "./processor/post_stringify.processor";
 import "./processor/validate.processor.js";
 import "./processor/workbook-typedef.processor.js";
-import { makeTypename } from "./processor/workbook-typedef.processor.js";
-import { runRegressionTests } from "./regression.js";
-import { runTypedefRegressionTests } from "./typedef.regression.js";
+import { makeTypename } from "./processor/workbook-typedef.processor";
+import { runRegressionTests } from "./regression";
+import { runTypedefRegressionTests } from "./typedef.regression";
 import "./rule/task.rule.js";
 
 const t = Date.now();

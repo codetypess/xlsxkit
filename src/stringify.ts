@@ -1,6 +1,6 @@
-import { type TArray, type TCell, type TObject, type TValue, Type } from "./core/schema.js";
-import { checkType, isNotNull } from "./core/value.js";
-import { escape, isNumericKey, keys } from "./util.js";
+import { type TArray, type TCell, type TObject, type TValue, Type } from "./core/schema";
+import { checkType, isNotNull } from "./core/value";
+import { escape, isNumericKey, keys } from "./util";
 
 export class StringBuffer {
     readonly data: string[] = [];

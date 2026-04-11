@@ -1,11 +1,11 @@
 import JSON5 from "json5";
-import { convertValue } from "./core/conversion.js";
-import { assert, error } from "./core/errors.js";
-import { converters, registerType } from "./core/registry.js";
-import { type Sheet, type TObject } from "./core/schema.js";
-import { type Context, Workbook } from "./core/workbook.js";
-import { StringBuffer } from "./stringify.js";
-import { toPascalCase } from "./util.js";
+import { convertValue } from "./core/conversion";
+import { assert, error } from "./core/errors";
+import { converters, registerType } from "./core/registry";
+import { type Sheet, type TObject } from "./core/schema";
+import { type Context, Workbook } from "./core/workbook";
+import { StringBuffer } from "./stringify";
+import { toPascalCase } from "./util";
 
 export type TypedefLiteral = string | number;
 

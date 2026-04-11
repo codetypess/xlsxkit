@@ -3,7 +3,7 @@
 
 import {
     TaskArgs,
-} from "../define/index.js";
+} from "../define/index";
 
 export interface GeneratedTypedefMainRow {
     /**

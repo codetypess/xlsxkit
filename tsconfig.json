@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "module": "node16",
-    "target": "ESNext",
+    "module": "es2022",
+    "target": "es2022",
     "strict": true,
-    "moduleResolution": "node16",
+    "moduleResolution": "bundler",
     "noEmitHelpers": true,
     "noImplicitOverride": true,
     "noImplicitAny": true,

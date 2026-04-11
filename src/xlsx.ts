@@ -1,9 +1,8 @@
 import * as xlsx from "fastxlsx";
-import { addContext } from "./core/context.js";
-import { convertBody, loadBody, loadHeader } from "./core/parser.js";
-import { copyWorkbook, performChecker, performProcessor, resolveChecker } from "./core/pipeline.js";
-import { DEFAULT_TAG, DEFAULT_WRITER } from "./core/registry.js";
-import { Context, Workbook } from "./core/workbook.js";
+import { convertBody, loadBody, loadHeader } from "./core/parser";
+import { copyWorkbook, performChecker, performProcessor, resolveChecker } from "./core/pipeline";
+import { DEFAULT_TAG, DEFAULT_WRITER } from "./core/registry";
+import { addContext, Context, Workbook } from "./core/workbook";
 
 export const build = async (fs: string[], headerOnly: boolean = false) => {
     const ctx = addContext(new Context(DEFAULT_WRITER, DEFAULT_TAG));

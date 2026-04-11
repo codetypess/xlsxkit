@@ -1,13 +1,13 @@
 import * as xlsx from "fastxlsx";
 import { basename } from "path";
-import { getContext } from "./context.js";
-import type { CheckerType } from "./contracts.js";
-import { BuiltinChecker } from "./contracts.js";
-import { convertValue } from "./conversion.js";
-import { assert, error, trace } from "./errors.js";
-import { DEFAULT_TAG, DEFAULT_WRITER, processors, writers } from "./registry.js";
-import { type Field, type Sheet, type TCell, type TRow, Type } from "./schema.js";
-import { checkType, ignoreField, toString } from "./value.js";
+import type { CheckerType } from "./contracts";
+import { BuiltinChecker } from "./contracts";
+import { convertValue } from "./conversion";
+import { assert, error, trace } from "./errors";
+import { DEFAULT_TAG, DEFAULT_WRITER, processors, writers } from "./registry";
+import { type Field, type Sheet, type TCell, type TRow, Type } from "./schema";
+import { checkType, ignoreField, toString } from "./value";
+import { getContext } from "./workbook";
 
 const MAX_HEADERS = 6;
 
@@ -94,7 +94,9 @@ export const parseChecker = (
                                   child
                               );
                               if (parsed.length !== 1) {
-                                  error(`Oneof branch must contain exactly one checker: '${child}'`);
+                                  error(
+                                      `Oneof branch must contain exactly one checker: '${child}'`
+                                  );
                               }
                               return parsed[0]!;
                           })

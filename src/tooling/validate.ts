@@ -43,16 +43,10 @@ const normalizeImportPath = (value: string) => {
         return value;
     }
     if (value.endsWith("/")) {
-        return `${value}index.js`;
-    }
-    if (value.endsWith(".schema")) {
-        return `${value}.js`;
+        return `${value}index`;
     }
     if (/\.(mts|cts|tsx?|mjs|cjs|js)$/.test(value)) {
-        return value.replace(/\.(mts|cts|tsx?|mjs|cjs|js)$/, ".js");
-    }
-    if (!/\.[^/]+$/.test(value)) {
-        return `${value}.js`;
+        return value.replace(/\.(mts|cts|tsx?|mjs|cjs|js)$/, "");
     }
     return value;
 };

@@ -1,4 +1,4 @@
-import type { TCell, TObject, TValue } from "./core/schema.js";
+import type { TCell, TObject, TValue } from "./core/schema";
 
 export const isNumericKey = (key: string) => {
     if (typeof key !== "string") return false;

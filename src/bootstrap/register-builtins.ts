@@ -8,14 +8,14 @@ import {
     SheetCheckerParser,
     SizeCheckerParser,
     UniqueCheckerParser,
-} from "../builtins/checkers.js";
+} from "../builtins/checkers";
 import {
     boolConverter,
     floatConverter,
     intConverter,
     jsonConverter,
     stringConverter,
-} from "../builtins/converters.js";
+} from "../builtins/converters";
 import {
     AutoRegisterProcessor,
     CollapseProcessor,
@@ -30,10 +30,10 @@ import {
     StringifyProcessor,
     TypedefProcessor,
     TypedefWriteProcessor,
-} from "../builtins/processors.js";
-import { BuiltinChecker } from "../core/contracts.js";
-import { registerChecker, registerProcessor, registerType } from "../core/registry.js";
-import { tableConverter } from "../core/table.js";
+} from "../builtins/processors";
+import { BuiltinChecker } from "../core/contracts";
+import { registerChecker, registerProcessor, registerType } from "../core/registry";
+import { tableConverter } from "../core/table";
 
 let registered = false;
 

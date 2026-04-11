@@ -4,7 +4,7 @@ import {
     ColumnIndexer,
     Context,
     RowIndexer,
-} from "../../index.js";
+} from "../../index";
 import {
     ItemDefineRow,
     ItemFollowRow,
@@ -22,7 +22,7 @@ import {
     TaskWeeklyRow,
     TypedefMainRow,
     TypedefTypedefRow,
-} from "./workbook-typedef.js";
+} from "./workbook-typedef";
 
 type Filter<T> = (row: T) => boolean;
 

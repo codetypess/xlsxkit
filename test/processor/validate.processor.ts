@@ -1,8 +1,8 @@
 import crypto from "crypto";
 import fs from "fs";
 import { basename, dirname, join, normalize, resolve } from "path";
-import * as xlsx from "../../index.js";
-import { mergeTypeFile, validateJson } from "../../src/tooling/validate.js";
+import * as xlsx from "../../index";
+import { mergeTypeFile, validateJson } from "../../src/tooling/validate";
 
 const VERSION = "v3";
 

@@ -2,16 +2,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import * as xlsx from "../index.js";
+import * as xlsx from "../index";
 import {
     ExprCheckerParser,
     IndexCheckerParser,
     SheetCheckerParser,
-} from "../src/builtins/checkers.js";
-import type { CheckerType } from "../src/core/contracts.js";
-import { parseChecker } from "../src/core/parser.js";
-import { performChecker, resolveChecker } from "../src/core/pipeline.js";
-import { mergeTypeFile } from "../src/tooling/validate.js";
+} from "../src/builtins/checkers";
+import type { CheckerType } from "../src/core/contracts";
+import { parseChecker } from "../src/core/parser";
+import { performChecker, resolveChecker } from "../src/core/pipeline";
+import { mergeTypeFile } from "../src/tooling/validate";
 
 const makeField = (name: string) => {
     return {
@@ -336,7 +336,7 @@ export interface CustomExtra {
 
         mergeTypeFile(autoPath, mergedPath);
         const merged = fs.readFileSync(mergedPath, "utf-8");
-        assert.match(merged, /import type\s*\{\s*ExtraType,\s*\}\s*from "\.\/extra\.js";/);
+        assert.match(merged, /import type\s*\{\s*ExtraType,\s*\}\s*from "\.\/extra\";/);
         assert.match(merged, /BarType/);
         assert.match(merged, /readonly args: Record<string, number \| string>; \/\/ override/);
         assert.match(merged, /readonly optional\?: FooType;/);

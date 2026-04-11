@@ -1,9 +1,9 @@
-import { Processor } from "../core/contracts.js";
-import { assert, trace } from "../core/errors.js";
-import { converters, registerChecker, registerType } from "../core/registry.js";
-import { type Sheet, type TObject, type TRow, type TValue } from "../core/schema.js";
-import { Workbook } from "../core/workbook.js";
-import { write } from "../io.js";
+import { Processor } from "../core/contracts";
+import { assert, trace } from "../core/errors";
+import { converters, registerChecker, registerType } from "../core/registry";
+import { type Sheet, type TObject, type TRow, type TValue } from "../core/schema";
+import { Workbook } from "../core/workbook";
+import { output } from "../io";
 import {
     collapseSheet,
     columnSheet,
@@ -12,13 +12,13 @@ import {
     mapSheet,
     resolveDefineType,
     typedefSheet,
-} from "../transforms/sheet.js";
+} from "../transforms/sheet";
 import {
     getTypedefWorkbook,
     registerTypedefConverters,
     registerTypedefWorkbook,
-} from "../typedef.js";
-import { keys, values } from "../util.js";
+} from "../typedef";
+import { keys, values } from "../util";
 
 export type StringifyRule = (workbook: Workbook) => object;
 const stringifyRules: Record<string, StringifyRule> = {};
@@ -64,12 +64,12 @@ export const StringifyProcessor: Processor = async (
         throw new Error(`Stringify rule not found: ${ruleName}`);
     }
     const data = rule(workbook);
-    write(workbook, "stringify", data);
+    output(workbook, "stringify", data);
 };
 
 export const DefineProcessor: Processor = async (workbook: Workbook, sheet: Sheet) => {
     const data = defineSheet(workbook, sheet);
-    write(workbook, "define", data);
+    output(workbook, "define", data);
     sheet.data = {};
     sheet.ignore = true;
 };
@@ -107,7 +107,7 @@ export const ColumnProcessor: Processor = async (
 };
 
 export const GenTypeProcessor: Processor = async (workbook: Workbook, sheet: Sheet) => {
-    write(workbook, "gen-type", null!);
+    output(workbook, "gen-type", null!);
 };
 
 export const TypedefProcessor: Processor = async (workbook: Workbook, sheet: Sheet) => {
@@ -129,7 +129,7 @@ export const TypedefWriteProcessor: Processor = async (workbook: Workbook, sheet
     if (!typedefWorkbook) {
         return;
     }
-    write(workbook, "typedef", typedefWorkbook as unknown as TObject);
+    output(workbook, "typedef", typedefWorkbook as unknown as TObject);
 };
 
 export const AutoRegisterProcessor: Processor = async (workbook: Workbook) => {

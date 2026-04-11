@@ -1,5 +1,5 @@
-import type { Field, Sheet, TArray, TCell, TObject, TRow, TValue } from "./schema.js";
-import type { Context, Workbook } from "./workbook.js";
+import type { Field, Sheet, TArray, TCell, TObject, TRow, TValue } from "./schema";
+import type { Context, Workbook } from "./workbook";
 
 export type CheckerType = {
     readonly name: string;

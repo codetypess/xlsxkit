@@ -12,17 +12,16 @@ function toSchemaName(name: string): string {
 }
 
 /**
- * "../define/index"           → "../define/index.schema.js"
- * "../define/index.js"        → "../define/index.schema.js"
- * "./activity.define.xlsx"    → "./activity.define.xlsx.schema.js"
- * "../define/"                → "../define/index.schema.js"
+ * "../define/index"           → "../define/index.schema"
+ * "./activity.define.xlsx"    → "./activity.define.xlsx.schema"
+ * "../define/"                → "../define/index.schema"
  */
 function toSchemaModulePath(modulePath: string): string {
-    if (modulePath.endsWith("/")) return modulePath + "index.schema.js";
+    if (modulePath.endsWith("/")) return modulePath + "index.schema";
     if (/\.(mjs|cjs|js)$/.test(modulePath)) {
-        return modulePath.replace(/\.(mjs|cjs|js)$/, ".schema.js");
+        return modulePath.replace(/\.(mjs|cjs|js)$/, ".schema");
     }
-    return modulePath.replace(/\.tsx?$/, "").replace(/$/, ".schema.js");
+    return modulePath.replace(/\.tsx?$/, "").replace(/$/, ".schema");
 }
 
 function isExported(node: ts.Node): boolean {
@@ -432,7 +431,6 @@ function assembleOutput(
         const inputBase = absInput.replace(/\.tsx?$/, "");
         let relPath = path.relative(outDir, inputBase).replace(/\\/g, "/");
         if (!relPath.startsWith(".")) relPath = "./" + relPath;
-        relPath += ".js";
         outLines.push(`import { ${ctx.localEnumNames.join(", ")} } from "${relPath}";`);
     }
 

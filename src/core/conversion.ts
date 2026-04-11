@@ -1,6 +1,6 @@
-import { error } from "./errors.js";
-import { converters } from "./registry.js";
-import { Type, type TCell, type TValue } from "./schema.js";
+import { error } from "./errors";
+import { converters } from "./registry";
+import { Type, type TCell, type TValue } from "./schema";
 
 const tokenizeArray = (str: string) => {
     str = str.trim();

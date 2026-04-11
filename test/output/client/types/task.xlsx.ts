@@ -5,7 +5,7 @@ import {
     Items,
     TaskArgs,
     TaskType,
-} from "../define/index.js";
+} from "../define/index";
 
 export interface GeneratedTaskBranchRow {
     /**

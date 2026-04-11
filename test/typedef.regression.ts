@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import * as xlsx from "../index.js";
+import * as xlsx from "../index";
 
 const makeObjectType = (name: string, literal: string) => {
     return {
