@@ -1,16 +1,16 @@
 {
-  "name": "xlsx-gen",
-  "version": "1.0.0",
+  "name": "typedsheet",
+  "version": "1.1.0",
   "description": "Build typed assets from xlsx workbooks.",
   "main": "./dist/index.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/codetypess/xlsx-gen.git"
+    "url": "git+https://github.com/codetypess/typedsheet.git"
   },
   "bugs": {
-    "url": "https://github.com/codetypess/xlsx-gen/issues"
+    "url": "https://github.com/codetypess/typedsheet/issues"
   },
-  "homepage": "https://github.com/codetypess/xlsx-gen#readme",
+  "homepage": "https://github.com/codetypess/typedsheet#readme",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

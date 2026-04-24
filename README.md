@@ -1,4 +1,4 @@
-# XLSX GEN
+# TypedSheet
 
 将遵循固定表头约定的 `.xlsx` 工作簿转换为可校验的数据模型，并按需输出为 JSON、TypeScript、Lua 等文件。
 
@@ -33,7 +33,7 @@ npm run test
 2. 调用 `build()` 读取工作簿并触发转换、校验和输出。
 
 ```ts
-import * as xlsx from "xlsx-gen";
+import * as xlsx from "typedsheet";
 
 const OUTPUT_DIR = "output";
 
