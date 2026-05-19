@@ -25,6 +25,15 @@ npm run check
 npm run test
 ```
 
+## 文档与 SDD
+
+仓库内的设计与开发机制文档放在 [docs/README.md](docs/README.md)。
+
+- [docs/spec-driven-development.md](docs/spec-driven-development.md)
+  当前仓库的 Specification-Driven Development 工作流
+- [docs/spec/README.md](docs/spec/README.md)
+  基线 spec 地图、阅读顺序与 work-item 约定
+
 ## 快速开始
 
 最小接入流程只有两步：
@@ -240,59 +249,62 @@ xlsx.registerStringifyRule("task", (workbook) => {
 
 ### 索引检查
 
-索引检查以 `#` 为核心操作符，用于验证当前值、当前值中的子路径，或当前值中的数组元素是否能在目标表中找到。
+索引检查以 `#` 为核心操作符，用于验证“当前单元格的值”或“从当前单元格里取出的子值”能否在目标表中找到。
 
-常用形式：
+速查语法：
 
 ```text
-[文件名]#[工作表名].[列名]
-$==[文件名]#[工作表名].[列名]&[列过滤器]
-$[路径][&行过滤器]==[文件名]#[工作表名].[列名][&列过滤器]
+[文件]#[Sheet].[列][&目标过滤器]
+$[取值路径][&行过滤器]==[文件]#[Sheet].[列][&目标过滤器]
+[文件]#
+$[取值路径]==[文件]#
 ```
 
-规则说明：
+基础规则：
 
-- 文件名可省略，省略时表示当前工作簿。
-- 工作表名可写 `*`，表示任意 Sheet。
-- `==` 左侧描述“从当前单元格里取什么值去查”。
-- `==` 右侧描述“去哪个文件、哪个 Sheet、哪一列查”。
-- 过滤器使用 `&` 连接多个 `字段=值` 条件。
-- checker 之间使用 `;` 分隔。
+- 文件名可省略，省略时表示当前工作簿；省略 `.xlsx` 后缀会自动补齐。
+- `#` 右侧的 `Sheet` 可写 `*`，表示任意 Sheet。
+- 不写左侧时，默认直接拿“当前单元格值”去查。
+- 左侧 `$...==` 表示“先从当前单元格里取值，再拿这些值去查”。
+- 左侧 `&...` 是“行过滤器”，不命中时本次检查直接跳过并视为通过。
+- 右侧 `&...` 是“目标过滤器”，用于限定目标表中哪些行可以参与匹配。
+- checker 之间仍然用 `;` 分隔。
 
-示例：
+左侧路径里的 `$` 表示当前单元格值，支持：
+
+- `$.field`
+- `$[0]`
+- `$[*]`
+- `$[.]`
+- `?` 可选访问，例如 `$.star?`、`$[1]?`
+
+快速示例：
 
 ```text
-#skill.id
-battle/battle_skill#skill.id
-battle/battle_skill#*.id
-$==equipment#equipment.id&part=1
-$[*]==activity/battle_pass#task.task_id
+#branch.id
+item#item.id
+task#*.id
+#define.value&key1=TASK_TYPE
+$[*]==#branch.id
+$[*].id==item#item.id
 $[.]==#technology.tech_id
 $&key1=COLLECTION_ITEM_ID==item#item.id
+$[0]==battle_skill#skill.id&lv=$[1]
 $.star?==hero#hero_star.star;$.stage?==hero#hero_stage.stage_parameter
 ```
 
+完整语法、执行原理和更多例子见下方“检查器详细语法（附录）”。
+
 ### 路径表达式
 
-在索引检查左侧，`$` 表示当前单元格的值：
-
-- `$.id`
-  取对象属性。
-- `$[0]`
-  取数组指定下标。
-- `$[*]`
-  遍历数组全部元素。
-- `$[.]`
-  取对象全部键名。
-- `?`
-  可选访问；路径不存在时跳过，不报错。
-
-示例：
+常见路径示例：
 
 ```text
 $.rewards[*].item_id
 $.config.targets[0]
 $.attrs?[*][0]
+$.meta.code
+$[1]?
 ```
 
 `@oneof(...)` 常见示例：
@@ -430,405 +442,360 @@ xlsx.registerProcessor(
 
 ## 检查器详细语法（附录）
 
-### 高级索引检查器
+### 高级索引查询（索引检查器）
 
-**核心机制**：
+这一节展开说明 `#...` / `$...==#...` 这套查询语法。核心目标只有一个：把一个或多个“源值”解析出来，再去目标工作簿里做存在性匹配。
 
-- `#` 是“取表”操作符，用于指定目标表格位置。
-- 根据是否有行表达式、行过滤器或列过滤器来选择语法形式。
+#### 基础语法
 
-### 表格结构说明
-
-基于项目中 Excel 文件的标准结构：
+##### 1. 直接拿当前单元格值去查
 
 ```text
-第1行: @define;@stringify(表名)           // 处理器定义
-第2行: id | comment | key1 | key2 | ...   // 字段名
-第3行: int | string? | string | ...        // 字段类型
-第4行: >> |   |   |   | ...               // 可选的状态标记
-第5行: !!! | x | x | x | ...             // 必填字段标记
-第6行: ### | 注释 |   |   | ...           // 字段注释
-第7行开始: 实际数据
+[文件]#[Sheet].[列][&目标过滤器]
 ```
 
-### 语法形式
-
-**核心操作符说明**：
-
-- **`#`** 是“取表”操作符，用于指定目标表格位置。
-- **`==`** 是分隔符，在特定情况下使用。
-
-#### 1. 简单形式（直接检查当前单元格值）
+示例：
 
 ```text
-[文件名]#[工作表名].[列名]
+#branch.id
+item#item.id
+task#*.id
+#define.value&key1=TASK_TYPE
 ```
 
-#### 2. 带列过滤器形式（左边有筛选时，左边必须有 $）
+##### 2. 先从当前单元格里取值，再去查
 
 ```text
-$[表达式]==[文件名]#[工作表名].[列名]&[列过滤器]
+$[取值路径][&行过滤器]==[文件]#[Sheet].[列][&目标过滤器]
 ```
 
-#### 3. 完整形式（有行表达式或行过滤器）
+示例：
 
 ```text
-$[行键表达式][&行过滤器]==[文件名]#[工作表名].[列名][&列过滤器]
+$[*]==#branch.id
+$[*].id==item#item.id
+$[.]==#technology.tech_id
+$[0]==battle_skill#skill.id&lv=$[1]
+$.star?==hero#hero_star.star
 ```
 
-**文件名规则**：
+##### 3. 只在满足当前行条件时才查
 
-- **当前文件内查找**：可以省略文件名，如 `#hero.id`
-- **跨文件引用**：必须指定文件名，如 `hero#hero.id`
-
-**关键规则**：
-
-- **左边有过滤器时**：左边必须要有 `$` 表达式，使用 `==` 分隔
-- **有行表达式或行过滤器时**：使用 `==` 分隔
-- **简单检查当前单元格值时**：直接使用 `#` 取表操作符
-
-### 行键表达式语法
-
-#### 重要说明
-
-在行键表达式中，`$` 代表**当前单元格的值**，而不是当前行的值。这意味着：
-
-- 如果当前单元格包含简单值，例如数字、字符串，则 `$` 就是该值
-- 如果当前单元格包含 JSON 对象，则可以用 `$.property` 访问对象属性
-- 如果当前单元格包含数组，则可以用 `$[index]` 访问数组元素
-
-#### 基本路径
-
-- `.property`：访问对象属性
-- `[index]`：访问数组元素，从 `0` 开始
-- `[*]`：遍历数组所有元素
-- `[.]`：获取对象所有键名
-
-#### 可选访问
-
-在路径后加 `?` 表示可选访问，如果路径不存在则跳过而不报错：
-
-- `.property?`：可选属性访问
-- `[index]?`：可选数组元素访问
-
-#### 复杂路径示例
-
-- `$.id`：获取当前单元格值，如果是对象，则读取 `id` 属性
-- `$.rewards[*].item_id`：获取当前单元格值中 `rewards` 数组所有元素的 `item_id`
-- `$.config.targets[0]`：获取当前单元格值中 `config.targets` 的第一个元素
-
-### 过滤器语法
-
-过滤器使用 `&` 连接多个条件，格式为 `字段名=值`：
-
-- `type=MAIN`：当前行的 `type` 字段等于 `MAIN`
-- `quality=1&enabled=true`：当前行的 `quality` 字段为 `1` 且 `enabled` 字段为 `true`
-
-**注意**：
-
-- 过滤器中的 `=` 是单等号，用于字段匹配
-- `==` 是双等号，用于分隔整个检查表达式的左右两部分
-
-### 使用示例
-
-#### 基于项目实际案例的示例
-
-以下示例均来自项目里真实的 checker 使用方式。
-
-#### 示例 1：简单索引检查
-
-```yaml
-# 检查功能开启ID是否存在
-# 来源：activity.xlsx -> activity工作表
-func_id: open_func#func.id
-
-# 检查英雄ID是否存在
-# 来源：battle/battle_robot.xlsx -> hero工作表
-hero_id: hero#hero.id
-
-# 检查怪物ID是否存在
-# 来源：activity/battle_pass.xlsx -> monster工作表
-monster_id: monster#troop.id
-
-# 检查价格是否在价格表中存在
-# 来源：activity/accumulate_recharge.xlsx -> reward工作表
-cost: price#price.cny
+```text
+$[取值路径][&行过滤器]==[文件]#[Sheet].[列][&目标过滤器]
 ```
 
-#### 示例 2：带列过滤器的检查
+示例：
 
-```yaml
-# 检查装备ID是否在对应部位的装备中存在
-# 来源：battle/battle_test.xlsx -> t1工作表
-eq_part_1: $==equipment#equipment.id&part=1 # 头盔
-eq_part_2: $==equipment#equipment.id&part=2 # 战甲
-eq_part_6: $==equipment#equipment.id&part=6 # 武器
-
-# 检查联盟道具购买价格中的道具ID
-# 来源：alliance.xlsx -> item工作表
-buy_price: $[*].id==#item.id
+```text
+$&key1=COLLECTION_ITEM_ID==item#item.id
+$.reward_id&kind=ITEM==item#item.id
+$.skill_id&kind=SKILL==battle/battle_skill#skill.id
 ```
 
-#### 示例 3：带行过滤器的检查
+##### 4. 检查目标工作簿里是否存在某个 Sheet
 
-```yaml
-# 只有当key1为COLLECTION_ITEM_ID时才检查物品ID
-# 来源：activity/wusheng_road.xlsx -> define工作表
-value: $&key1=COLLECTION_ITEM_ID==item#item.id
-
-# 根据不同条件检查不同表（多条件可选验证）
-# 来源：activity/upstar_limit.xlsx -> task工作表
-args: $.star?==hero#hero_star.star;$.stage?==hero#hero_stage.stage_parameter
+```text
+[文件]#
+$[取值路径]==[文件]#
 ```
 
-#### 示例 4：数组元素检查
+示例：
 
-```yaml
-# 检查任务数组中每个ID是否都存在
-# 来源：activity/battle_pass.xlsx -> typeInfo工作表
-daily_tasks: $[*]==activity/battle_pass#task.task_id
-weekly_tasks: $[*]==activity/battle_pass#task.task_id
-
-# 检查技能动作ID数组
-# 来源：battle/battle_skill.xlsx -> skill工作表
-carry_actions: $[*]==battle/battle_skill#action.id
-
-# 检查技能标签数组
-# 来源：battle/battle_skill.xlsx -> buff工作表
-granted_tags: $[*]==#define.key2&key1=SKILL_TAG
+```text
+task#
+$[.]==ui_config#
+$.tabs[*]==panel#
 ```
 
-#### 示例 5：对象键检查
+#### 基础语法元素
 
-```yaml
-# 检查前置科技条件（对象的键）
-# 来源：alliance.xlsx -> technology工作表
-pre_tech_cond: $[.]==#technology.tech_id
+- `#`
+  指定目标工作簿 / Sheet / 列，例如 `item#item.id`
+- `==`
+  分隔“源值提取”和“目标查询”，例如 `$[*].id==item#item.id`
+- `$`
+  表示当前单元格值，例如 `$.reward.id`
+- `.field`
+  读取对象属性，例如 `$.meta.code`
+- `[0]`
+  读取数组第 `0` 个元素，例如 `$[0]`
+- `[*]`
+  展开数组全部元素，例如 `$[*].id`
+- `[.]`
+  取对象全部键名，例如 `$[.]`
+- `?`
+  可选访问，不存在时跳过，例如 `$.star?`、`$[1]?`
+- `&field=literal`
+  使用字面量做过滤，例如 `#main.id&type=MAIN`
+- `&field=@otherField`
+  使用当前行另一个字段的值做过滤，例如 `#main.id&kind=@kind`
+- `&field=$path`
+  使用当前单元格里的子路径结果做过滤，例如 `#skill.id&lv=$[1]`
+- `*`
+  表示任意 Sheet，例如 `task#*.id`
+- 省略文件名
+  表示当前工作簿，例如 `#branch.id`
+- 省略左侧
+  表示直接使用当前单元格值，例如 `item#item.id`
+
+#### 执行原理
+
+##### 1. 先决定“源值”是什么
+
+- 如果没有左侧 `$...==`，就直接拿当前单元格值去查。
+- 如果写了 `$...==`，就先从当前单元格值里按路径取值。
+- 路径最终产出的每一个值都必须是 `string` 或 `number`；如果最后还是对象或数组，会报类型错误。
+
+##### 2. 再判断行过滤器是否命中
+
+- 左侧 `&...` 是“当前行守卫条件”。
+- 只有这些条件全部命中，才会继续去目标表查询。
+- 只要有一个条件不命中，本次检查会直接跳过，并视为通过。
+
+示例：
+
+```text
+$&key1=COLLECTION_ITEM_ID==item#item.id
 ```
 
-#### 示例 6：条件性检查
+上面这条的含义是：只有当前行的 `key1` 等于 `COLLECTION_ITEM_ID` 时，才检查当前单元格里的值是否存在于 `item#item.id`。
 
-```yaml
-# 根据不同属性检查不同表（可选属性验证）
-# 来源：activity/upstar_limit.xlsx -> task工作表
-args: $.star?==hero#hero_star.star;$.stage?==hero#hero_stage.stage_parameter
+##### 3. 然后构造目标索引
 
-# 复杂的属性检查（多层可选验证）
-# 来源：alliance.xlsx -> technology工作表
-base: $.higner_attrs?[*][0]==attr#higher_attr.id;$.attrs?[*][0]==attr#attr.id
+- 目标部分是 `[文件]#[Sheet].[列]`。
+- 文件名可省略 `.xlsx` 后缀，运行时会自动补齐。
+- `Sheet` 可以写 `*`，表示在目标工作簿的任意 Sheet 中查这一列。
+
+##### 4. 最后应用目标过滤器
+
+- 右侧 `&...` 是“目标行过滤器”。
+- 只有目标表中满足这些过滤条件的行，才参与匹配。
+- 过滤器值支持三种来源：
+    - 字面量：`type=MAIN`
+    - 当前行字段：`kind=@kind`
+    - 当前单元格子路径：`lv=$[1]`
+
+##### 5. 多值查询按“全部命中”处理
+
+- `$[*]`、`$[*].id`、`$[.]` 这类路径可能会展开出多个值。
+- 展开的每一个值都必须在目标索引中找到，只要有一个找不到，整个 checker 就失败。
+
+#### 过滤器规则
+
+过滤器统一写成 `&字段=值`，左右两侧都支持，多个条件之间用 `&` 连接。
+
+规则说明：
+
+- 左侧过滤器匹配“当前行”的字段。
+- 右侧过滤器匹配“目标表”的字段。
+- 字面量会按对应字段类型自动转换后再比较，例如 `part=1` 会按 `part` 列的真实类型转换。
+- `@field` 取的是“当前行另一个字段”的值，不是当前单元格值。
+- `$path` 取的是“当前单元格里的子路径值”，并且这里必须最终只解析出一个标量。
+
+合法示例：
+
+```text
+#main.id&type=MAIN
+#main.id&kind=@kind
+$[0]==battle_skill#skill.id&lv=$[1]
+$.id==#refs.id&group=$.group
+$&kind=ITEM==item#item.id
+$&kind=@kind==item#item.id
 ```
 
-#### 示例 7：跨目录文件引用
+#### 路径规则
 
-```yaml
-# 检查传送点奖励
-# 来源：activity/novice_limit_time.xlsx -> drop工作表
-transferId: battle/battle_pve_map#transfer.id
+路径里的 `$` 永远表示“当前单元格值”，不是当前行。
 
-# 检查NPC状态
-# 来源：battle/battle_npc_state.xlsx -> npcState工作表
-npc_id: battle/battle_npc#npc.id
+常见路径：
 
-# 检查获取途径ID
-# 来源：activity/battle_pass.xlsx -> task工作表
-getwayid: item#itemGetWay.id
+```text
+$.id
+$.rewards[*].item_id
+$.config.targets[0]
+$[*][0]
+$[.]
+$.star?
+$[1]?
+$.attrs?[*][0]
 ```
 
-#### 示例 8：复杂嵌套检查
+说明：
 
-```yaml
-# 检查属性数组，每个元素的第一个值必须是属性ID
-# 来源：battle/battle_skill_lv.xlsx -> attr工作表
-attr: $[*][0]==attr#attr.id
+- `.field` 适合对象。
+- `[n]` 适合数组。
+- `[*]` 会展开数组所有元素。
+- `[.]` 会把对象的所有键名取出来。
+- `?` 只对 `.field?` 和 `[n]?` 这种“可能不存在”的访问有意义。
 
-# 检查任务ID（支持通配符）
-# 来源：battle/battle_interaction_resource.xlsx -> resource工作表
-born_task_id: task#*.id
+#### 使用示例
 
-# 检查资产ID
-# 来源：alliance.xlsx -> building工作表
-asset_id: asset#assets.id
+##### 1. 最常见：普通外键检查
+
+```text
+# 当前工作簿
+#branch.id
+#define.value
+
+# 跨工作簿
+item#item.id
+hero#hero.id
+monster#troop.id
+asset#assets.id
+price#price.cny
+
+# 跨目录
+battle/battle_skill#skill.id
+battle/battle_npc#npc.id
+battle/battle_pve_map#transfer.id
 ```
 
-### 常见应用场景
+##### 2. 任意 Sheet 通配
 
-#### 1. 外键关系验证
-
-最常见的用法，验证 ID 字段的外键关系：
-
-```yaml
-# 活动功能开启检查
-# 来源：activity.xlsx -> activity工作表
-func_id: open_func#func.id
-
-# 英雄ID验证
-# 来源：battle/battle_robot.xlsx -> hero工作表
-hero_id: hero#hero.id
-
-# 怪物ID验证（跨文件）
-# 来源：activity/battle_pass.xlsx -> monster工作表
-monster_id: monster#troop.id
-
-# 资产ID验证
-# 来源：alliance.xlsx -> building工作表
-asset_id: asset#assets.id
+```text
+task#*.id
+open_func#*.id
+item#*.id
 ```
 
-#### 2. 带条件的验证
+##### 3. 直接用目标过滤器缩小查询范围
 
-根据其他字段值进行条件性检查：
-
-```yaml
-# 装备部位验证：根据装备部位检查对应的装备
-# 来源：battle/battle_test.xlsx -> t1工作表
-eq_part_1: $==equipment#equipment.id&part=1 # 头盔
-eq_part_6: $==equipment#equipment.id&part=6 # 武器
-
-# 价格验证：检查价格是否在价格表中存在
-# 来源：activity/daily_recharge.xlsx -> reward工作表
-recharge_limit: price#price.cny
-# 来源：activity/gift_push.xlsx -> gifts工作表
-cost: price#price.cny
+```text
+#define.value&key1=TASK_TYPE
+#define.key2&key1=SKILL_TAG
+equipment#equipment.id&part=1
+equipment#equipment.id&part=2
+equipment#equipment.id&part=6
+task#*.id&type=MAIN
 ```
 
-#### 3. 数组和集合验证
+##### 4. 从对象里取一个字段再查
 
-验证数组中每个元素或对象的键：
-
-```yaml
-# 任务列表验证
-# 来源：activity/battle_pass.xlsx -> typeInfo工作表
-daily_tasks: $[*]==activity/battle_pass#task.task_id
-weekly_tasks: $[*]==activity/battle_pass#task.task_id
-
-# 技能动作验证
-# 来源：battle/battle_skill.xlsx -> skill工作表
-carry_actions: $[*]==battle/battle_skill#action.id
-
-# 对象键验证（前置科技）
-# 来源：alliance.xlsx -> technology工作表
-pre_tech_cond: $[.]==#technology.tech_id
-
-# 属性数组验证（数组元素的第一个值）
-# 来源：battle/battle_skill_lv.xlsx -> attr工作表
-attr: $[*][0]==attr#attr.id
+```text
+$.id==item#item.id
+$.task_id==task#main.id
+$.code==#define.key2&key1=SKILL_TAG
+$.reward.item_id==item#item.id
+$.meta.attr_id==attr#attr.id
 ```
 
-#### 4. 复杂条件验证
+##### 5. 从数组里取值再查
 
-根据行过滤器进行复杂的条件验证：
-
-```yaml
-# 根据key1字段值决定是否验证
-# 来源：activity/wusheng_road.xlsx -> define工作表
-value: $&key1=COLLECTION_ITEM_ID==item#item.id
-
-# 标签验证：根据标签类型进行验证
-# 来源：battle/battle_skill.xlsx -> buff工作表
-granted_tags: $[*]==#define.key2&key1=SKILL_TAG
-ongoing_require_tags: $[*]==#define.key2&key1=SKILL_TAG
+```text
+$[*]==#branch.id
+$[*]==activity/battle_pass#task.task_id
+$[*]==battle/battle_skill#action.id
+$[*].id==item#item.id
+$[*][0]==attr#attr.id
+$[0]==skill#skill.id
 ```
 
-#### 5. 多条件可选验证
+##### 6. 用对象键名做查询
 
-使用 `?` 进行可选字段验证：
-
-```yaml
-# 根据不同属性检查不同表
-# 来源：activity/upstar_limit.xlsx -> task工作表
-args: $.star?==hero#hero_star.star;$.stage?==hero#hero_stage.stage_parameter
-
-# 复杂属性验证
-# 来源：alliance.xlsx -> technology工作表
-base: $.higner_attrs?[*][0]==attr#higher_attr.id;$.attrs?[*][0]==attr#attr.id
-percent: $.higner_attrs?[*][0]==attr#higher_attr.id;$.attrs?[*][0]==attr#attr.id
+```text
+$[.]==#technology.tech_id
+$[.]==ui_panel#panel.id
+$[.]==#define.key2&key1=SKILL_TAG
 ```
 
-#### 6. 跨目录文件验证
+##### 7. 可选路径：字段不存在时跳过
 
-验证不同子目录中的表格引用：
-
-```yaml
-# 战斗相关验证
-# 来源：activity/novice_limit_time.xlsx -> drop工作表
-transferId: battle/battle_pve_map#transfer.id
-# 来源：battle/battle_npc_state.xlsx -> npcState工作表
-npc_id: battle/battle_npc#npc.id
-
-# 活动相关验证
-# 来源：activity/battle_pass.xlsx -> task工作表
-getwayid: item#itemGetWay.id
-
-# 技能相关验证
-# 来源：battle/battle_test.xlsx -> ft1工作表
-skill1_id: battle/battle_skill#skill.id
+```text
+$.star?==hero#hero_star.star
+$.stage?==hero#hero_stage.stage_parameter
+$.attrs?[*][0]==attr#attr.id
+$.higher_attrs?[*][0]==attr#higher_attr.id
+$.reward_list?[0]?==reward#reward.id
 ```
 
-#### 7. 通配符表名验证
+##### 8. 左侧行过滤器：只在特定行上启用检查
 
-使用通配符匹配多个工作表：
-
-```yaml
-# 支持任意工作表的任务ID
-# 来源：battle/battle_interaction_resource.xlsx -> resource工作表
-born_task_id: task#*.id
-
-# 支持任意工作表的功能ID
-# 来源：activity/fund.xlsx -> fundInfo工作表
-func_jump: open_func#*.id
+```text
+$&key1=COLLECTION_ITEM_ID==item#item.id
+$&type=MAIN==task#main.id
+$.reward_id&kind=ITEM==item#item.id
+$.skill_id&kind=SKILL==battle/battle_skill#skill.id
+$.func_id&group=JUMP==open_func#func.id
 ```
 
-### 语法规则总结
+##### 9. 右侧目标过滤器：用目标表字段继续约束
 
-基于项目实际使用情况的完整语法总结：
-
-#### 基本规则
-
-- **`#` 是“取表”操作符**：指定目标表格
-- **文件名可省略**：当前文件内用 `#表名.列名`，跨文件用 `文件名#表名.列名`
-- **支持子目录**：如 `battle/battle_skill#skill.id`
-- **支持通配符**：如 `task#*.id`，匹配任意工作表
-
-#### 路径表达式语法
-
-`$`：当前单元格值
-
-`$.property`：对象属性
-
-`$[index]`：数组元素
-
-`$[*]`：数组所有元素
-
-`$[.]`：对象所有键
-
-`$.property?`：可选属性，不存在时跳过
-
-`$[*][0]`：数组元素的第一个值
-
-#### 实际使用模式
-
-```yaml
-# 模式1：简单ID验证
-hero_id: hero#hero.id
-
-# 模式2：带列过滤器的验证
-eq_part_1: $==equipment#equipment.id&part=1
-
-# 模式3：数组元素验证
-tasks: $[*]==activity/battle_pass#task.task_id
-
-# 模式4：对象键验证
-tech_cond: $[.]==#technology.tech_id
-
-# 模式5：条件验证
-value: $&key1=ITEM_ID==item#item.id
-
-# 模式6：可选属性验证
-args: $.star?==hero#hero_star.star
-
-# 模式7：跨目录验证
-npc_id: battle/battle_npc#npc.id
+```text
+#main.id&type=MAIN
+#main.id&kind=@kind
+#main.id&group=SHOP&enabled=true
+$.id==#refs.id&group=A
+$.id==#refs.id&group=$.group
+$[0]==battle_skill#skill.id&lv=$[1]
 ```
+
+##### 10. 同时使用左侧和右侧过滤器
+
+```text
+$&kind=ITEM==item#item.id&type=NORMAL
+$.id&kind=TASK==task#main.id&type=@task_type
+$.skill_id&scene=PVE==battle/battle_skill#skill.id&lv=$.skill_lv
+```
+
+##### 11. 一个字段拆成多个 checker
+
+```text
+$.star?==hero#hero_star.star;$.stage?==hero#hero_stage.stage_parameter
+$.higher_attrs?[*][0]==attr#higher_attr.id;$.attrs?[*][0]==attr#attr.id
+$[*].id==item#item.id;$[*].count==item_count#define.value&key1=COUNT_RULE
+```
+
+##### 12. 过滤器值引用当前行其他列
+
+```text
+#main.id&kind=@kind
+#main.id&group=@group
+$.id==reward#reward.id&quality=@quality
+$&kind=@kind==item#item.id
+```
+
+##### 13. 过滤器值引用当前单元格内部数据
+
+```text
+$[0]==battle_skill#skill.id&lv=$[1]
+$.id==reward#reward.id&group=$.group
+$.attr_id==attr#attr.id&type=$.attr_type
+```
+
+##### 14. Sheet 存在性检查
+
+```text
+task#
+ui_panel#
+$==task#
+$[.]==ui_panel#
+$.tabs[*]==panel#
+```
+
+#### 常见等价写法
+
+下面两种写法效果一致，第二种只是把“当前单元格值”显式写出来：
+
+```text
+item#item.id
+$==item#item.id
+```
+
+同理：
+
+```text
+#branch.id
+$==#branch.id
+```
+
+#### 常见坑
+
+- `$` 表示当前单元格值，不表示整行。
+- 左侧过滤器和右侧过滤器不是一回事：左侧控制“要不要查”，右侧控制“去目标表里查哪些行”。
+- `$.meta==#item.id` 这类写法如果 `meta` 最终是对象而不是字符串/数字，会报类型错误。
+- 过滤器里的 `$path` 必须只解析出一个值，所以 `lv=$[1]` 合法，但像 `lv=$[*]` 这种会报错。
+- `?` 适合可选属性和可选下标访问；如果字段本来一定存在，不需要滥用。
 
 #### `!@checker`
 
