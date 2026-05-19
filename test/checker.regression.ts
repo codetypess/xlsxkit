@@ -96,6 +96,25 @@ const runParseCheckerTests = () => {
         "id",
         "group=B",
     ]);
+
+    const indexWithCellFilter = parseChecker(
+        "source.xlsx",
+        "main",
+        "A2",
+        1,
+        "$[0]==battle_skill#skill.id&lv=$[1]"
+    )[0]!;
+    assert.equal(indexWithCellFilter.name, xlsx.BuiltinChecker.Index);
+    assert.deepEqual(indexWithCellFilter.args, [
+        "source.xlsx",
+        "main",
+        "[0]",
+        "",
+        "battle_skill.xlsx",
+        "skill",
+        "id",
+        "lv=$[1]",
+    ]);
 };
 
 const runReferBindingTests = () => {
@@ -280,6 +299,7 @@ const runSingleCheckerParserTests = () => {
 
 const runIndexAndSheetCheckerTests = () => {
     const ctx = new xlsx.Context("checker-regression", "single-scenarios");
+    const battleSkillWorkbook = new xlsx.Workbook(ctx, "battle_skill.xlsx");
     const sourceWorkbook = new xlsx.Workbook(ctx, "source.xlsx");
     const targetWorkbook = new xlsx.Workbook(ctx, "target.xlsx");
     const sourceSheet = makeSheet("main", [
@@ -294,6 +314,10 @@ const runIndexAndSheetCheckerTests = () => {
     const refsSheet = makeSheet("refs", [
         { name: "id", typename: "int" },
         { name: "group", typename: "string" },
+    ]);
+    const skillSheet = makeSheet("skill", [
+        { name: "id", typename: "int" },
+        { name: "lv", typename: "int" },
     ]);
     const alphaSheet = makeSheet("alpha", [{ name: "id", typename: "int" }]);
     const betaSheet = makeSheet("beta", [{ name: "id", typename: "int" }]);
@@ -312,9 +336,19 @@ const runIndexAndSheetCheckerTests = () => {
         id: makeCell(1, "int", "A2"),
         group: makeCell("A", "string", "B2"),
     });
+    skillSheet.data["1"] = makeRow({
+        id: makeCell(101, "int", "A2"),
+        lv: makeCell(1, "int", "B2"),
+    });
+    skillSheet.data["2"] = makeRow({
+        id: makeCell(102, "int", "A3"),
+        lv: makeCell(2, "int", "B3"),
+    });
 
+    ctx.add(battleSkillWorkbook);
     ctx.add(sourceWorkbook);
     ctx.add(targetWorkbook);
+    battleSkillWorkbook.add(skillSheet);
     sourceWorkbook.add(sourceSheet);
     targetWorkbook.add(itemsSheet);
     targetWorkbook.add(refsSheet);
@@ -477,6 +511,50 @@ const runIndexAndSheetCheckerTests = () => {
         });
         assert.equal(ok, true);
         assert.deepEqual(errors, []);
+    }
+
+    {
+        const checker = IndexCheckerParser(
+            ctx,
+            "source.xlsx",
+            "main",
+            "[0]",
+            "",
+            "battle_skill.xlsx",
+            "skill",
+            "id",
+            "lv=$[1]"
+        );
+
+        const successErrors: string[] = [];
+        const success = checker({
+            workbook: sourceWorkbook,
+            sheet: sourceSheet,
+            field: sourceSheet.fields[0]!,
+            row: makeRow({
+                payload: makeCell([101, 1], "json", "A8"),
+                kind: makeCell("A", "string", "B8"),
+            }),
+            cell: makeCell([101, 1], "json", "A8"),
+            errors: successErrors,
+        });
+        assert.equal(success, true);
+        assert.deepEqual(successErrors, []);
+
+        const failureErrors: string[] = [];
+        const failure = checker({
+            workbook: sourceWorkbook,
+            sheet: sourceSheet,
+            field: sourceSheet.fields[0]!,
+            row: makeRow({
+                payload: makeCell([101, 2], "json", "A9"),
+                kind: makeCell("A", "string", "B9"),
+            }),
+            cell: makeCell([101, 2], "json", "A9"),
+            errors: failureErrors,
+        });
+        assert.equal(failure, false);
+        assert.deepEqual(failureErrors, ["101"]);
     }
 };
 

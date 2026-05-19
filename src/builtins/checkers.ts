@@ -1,7 +1,7 @@
 import { CheckerParser } from "../core/contracts";
 import { convertValue } from "../core/conversion";
 import { error } from "../core/errors";
-import { type TCell, type TObject, type TValue } from "../core/schema";
+import { type TCell, type TObject, type TRow, type TValue } from "../core/schema";
 import { Context } from "../core/workbook";
 import { ColumnIndexer, RowFilter } from "../indexer";
 import { keys } from "../util";
@@ -157,6 +157,14 @@ type IndexerFilterExpr = {
     filter: string;
 };
 
+type ParsedFilter = {
+    key: string;
+    literal?: string | number;
+    refer?: string;
+    resolveFromCell?: ReturnType<typeof parseResolver>;
+    source: string;
+};
+
 const parseFilter = (ctx: Context, expr: IndexerFilterExpr) => {
     const workbook = ctx.get(expr.file);
     const findField = (name: string) => {
@@ -177,31 +185,80 @@ const parseFilter = (ctx: Context, expr: IndexerFilterExpr) => {
         .split("&")
         .filter((s) => s.length)
         .map((s) => {
-            const [, key, value] = s.match(/(\w+)=(@?\w+)/) ?? [];
+            const [, key, value] = s.match(/^(\w+)=(.+)$/) ?? [];
             if (key && value) {
                 const field = findField(key);
                 if (!field) {
                     error(`Field not found: ${key}`);
                 }
-                let filter: RowFilter | undefined;
                 if (value.startsWith("@")) {
-                    filter = {
+                    return {
                         key,
-                        value: value.slice(1),
                         refer: value.slice(1),
-                    };
-                } else {
-                    const v = convertValue(value, field.typename);
-                    filter = {
-                        key,
-                        value: v as string | number,
-                    };
+                        source: value,
+                    } satisfies ParsedFilter;
                 }
-                return filter;
+
+                if (value.startsWith("$")) {
+                    return {
+                        key,
+                        resolveFromCell: parseResolver({ ...expr, key: value.slice(1) }),
+                        source: value,
+                    } satisfies ParsedFilter;
+                }
+
+                const v = convertValue(value, field.typename);
+                return {
+                    key,
+                    literal: v as string | number,
+                    source: value,
+                } satisfies ParsedFilter;
             } else {
                 error(`Invalid filter: ${expr.filter}`);
             }
-        }) as readonly RowFilter[];
+        }) as readonly ParsedFilter[];
+};
+
+const resolveFilterValue = (
+    entry: ParsedFilter,
+    row: TRow,
+    cellValue: TValue,
+    errors: string[]
+) => {
+    if (entry.resolveFromCell) {
+        const values: Array<string | number> = [];
+        const ok = entry.resolveFromCell(cellValue, errors, (value) => {
+            values.push(value);
+            return true;
+        });
+        if (!ok) {
+            return undefined;
+        }
+        if (values.length !== 1) {
+            errors.push(`filter value error: ${entry.source}`);
+            return undefined;
+        }
+        return values[0];
+    }
+
+    if (entry.refer) {
+        const refer = row[entry.refer] as TCell | undefined;
+        if (!refer || refer.v === null || refer.v === undefined) {
+            errors.push(`not found ${entry.refer} in row`);
+            return undefined;
+        }
+        if (typeof refer.v !== "string" && typeof refer.v !== "number") {
+            errors.push(`refer type error: data=${refer.v} type=${typeof refer.v}`);
+            return undefined;
+        }
+        return refer.v;
+    }
+
+    if (entry.literal === undefined) {
+        errors.push(`filter value error: ${entry.source}`);
+        return undefined;
+    }
+    return entry.literal;
 };
 
 const parseIndexerAst = (ctx: Context, rowExpr: IndexerFilterExpr, colExpr: IndexerFilterExpr) => {
@@ -244,6 +301,10 @@ export const IndexCheckerParser: CheckerParser = (
             filter: colFilter,
         }
     );
+    const filter: RowFilter[] = ast.target.filter.map((entry) => {
+        return { key: entry.key, value: "" };
+    });
+
     const indexer = new ColumnIndexer(ctx, colFile, colSheet, ast.target.key);
 
     return ({ cell, row, field, errors, workbook, sheet }) => {
@@ -260,7 +321,11 @@ export const IndexCheckerParser: CheckerParser = (
                         `field '${entry.key}' not found in ${workbook.path}#${sheet.name}`
                     );
                 }
-                if (rowCell.v !== entry.value) {
+                const value = resolveFilterValue(entry, row, cell.v, errors);
+                if (value === undefined) {
+                    return false;
+                }
+                if (rowCell.v !== value) {
                     return true;
                 }
             }
@@ -271,26 +336,13 @@ export const IndexCheckerParser: CheckerParser = (
                 return indexer.has(value);
             }
 
-            const filter: RowFilter[] = [];
+            let i = 0;
             for (const entry of ast.target.filter) {
-                if (!entry.refer) {
-                    filter.push(entry);
-                    continue;
-                }
-
-                const refer = row[entry.refer] as TCell | undefined;
-                if (!refer || refer.v === null || refer.v === undefined) {
-                    errors.push(`not found ${entry.refer} in row`);
+                const filterValue = resolveFilterValue(entry, row, cell.v, errors);
+                if (filterValue === undefined) {
                     return false;
                 }
-                if (typeof refer.v !== "string" && typeof refer.v !== "number") {
-                    errors.push(`refer type error: data=${refer.v} type=${typeof refer.v}`);
-                    return false;
-                }
-                filter.push({
-                    ...entry,
-                    value: refer.v,
-                });
+                filter[i++].value = filterValue;
             }
 
             return indexer.has(value, filter);
