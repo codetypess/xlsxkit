@@ -1,39 +1,35 @@
+import { ExprCheckerParser } from "./checkers/expr";
+import { FollowCheckerParser } from "./checkers/follow";
+import { IndexCheckerParser } from "./checkers/index-checker";
+import { OneOfCheckerParser } from "./checkers/oneof";
+import { RangeCheckerParser } from "./checkers/range";
+import { ReferCheckerParser } from "./checkers/refer";
+import { SheetCheckerParser } from "./checkers/sheet";
+import { SizeCheckerParser } from "./checkers/size";
+import { UniqueCheckerParser } from "./checkers/unique";
+import { boolConverter } from "./converters/bool";
+import { floatConverter } from "./converters/float";
+import { intConverter } from "./converters/int";
+import { jsonConverter } from "./converters/json";
+import { stringConverter } from "./converters/string";
+import { BuiltinChecker } from "./core/contracts";
+import { registerChecker, registerProcessor, registerType } from "./core/registry";
+import { tableConverter } from "./core/table";
+import { AutoRegisterProcessor } from "./processors/auto-register";
+import { CollapseProcessor } from "./processors/collapse";
+import { ColumnProcessor } from "./processors/column";
+import { ConfigProcessor } from "./processors/config";
+import { DefineProcessor } from "./processors/define";
+import { GenTypeProcessor } from "./processors/gen-type";
+import { MapProcessor } from "./processors/map";
 import {
-    ExprCheckerParser,
-    FollowCheckerParser,
-    IndexCheckerParser,
-    OneOfCheckerParser,
-    RangeCheckerParser,
-    ReferCheckerParser,
-    SheetCheckerParser,
-    SizeCheckerParser,
-    UniqueCheckerParser,
-} from "../builtins/checkers";
-import {
-    boolConverter,
-    floatConverter,
-    intConverter,
-    jsonConverter,
-    stringConverter,
-} from "../builtins/converters";
-import {
-    AutoRegisterProcessor,
-    CollapseProcessor,
-    ColumnProcessor,
-    ConfigProcessor,
-    DefineProcessor,
-    GenTypeProcessor,
-    MapProcessor,
     mergeSheets,
     registerStringifyRule,
     simpleSheets,
     StringifyProcessor,
-    TypedefProcessor,
-    TypedefWriteProcessor,
-} from "../builtins/processors";
-import { BuiltinChecker } from "../core/contracts";
-import { registerChecker, registerProcessor, registerType } from "../core/registry";
-import { tableConverter } from "../core/table";
+} from "./processors/stringify";
+import { TypedefProcessor } from "./processors/typedef";
+import { TypedefWriteProcessor } from "./processors/typedef-write";
 
 let registered = false;
 

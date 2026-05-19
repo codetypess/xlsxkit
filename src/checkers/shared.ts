@@ -1,70 +1,28 @@
-import { CheckerParser } from "../core/contracts";
 import { convertValue } from "../core/conversion";
 import { error } from "../core/errors";
 import { type TCell, type TObject, type TRow, type TValue } from "../core/schema";
 import { Context } from "../core/workbook";
-import { ColumnIndexer, RowFilter } from "../indexer";
 import { keys } from "../util";
 
-export const SizeCheckerParser: CheckerParser = (ctx, arg) => {
-    const length = Number(arg);
-    if (isNaN(length)) {
-        throw new Error(`Invalid length: '${length}'`);
-    }
-    return ({ cell }) => {
-        if (cell.v instanceof Array) {
-            return cell.v.length === length;
-        }
-        return false;
-    };
+export type IndexerFilterExpr = {
+    file: string;
+    sheet: string;
+    key: string;
+    filter: string;
 };
 
-export const ExprCheckerParser: CheckerParser = (ctx, expr) => {
-    expr = Array.from(expr.matchAll(/\$?[\w.]+|\d+|[^\w]+/g))
-        .map(([v]) => {
-            if (/^[a-zA-Z_]/.test(v)) {
-                return v.replace(/^(\w+)/, "this.$1.v");
-            } else {
-                return v;
-            }
-        })
-        .join("");
-    const check = new Function("$", "return " + expr);
-    return ({ cell, row, errors }) => {
-        try {
-            return check.call(row, cell.v);
-        } catch (e) {
-            errors.push(`Expression error: ${expr}`);
-            return false;
-        }
-    };
-};
+type ParsedValueResolver = (
+    value: TValue,
+    errors: string[],
+    walker: (value: string | number) => boolean
+) => boolean;
 
-export const FollowCheckerParser: CheckerParser = (ctx, arg) => {
-    return ({ cell, row }) => {
-        const follow = row[arg] as TCell;
-        if (follow.v !== null) {
-            return cell.v !== null;
-        } else {
-            return cell.v === null;
-        }
-    };
-};
-
-export const RangeCheckerParser: CheckerParser = (ctx, arg) => {
-    let values: unknown[] = [];
-    try {
-        values = JSON.parse(arg);
-    } catch (e) {
-        throw new Error(`Invalid range: '${arg}'`);
-    }
-    return ({ cell }) => {
-        return values.includes(cell.v);
-    };
-};
-
-export const OneOfCheckerParser: CheckerParser = () => {
-    return () => true;
+export type ParsedFilter = {
+    key: string;
+    literal?: string | number;
+    refer?: string;
+    resolveFromCell?: ParsedValueResolver;
+    source: string;
 };
 
 const parseResolver = (expr: IndexerFilterExpr) => {
@@ -150,21 +108,6 @@ const parseResolver = (expr: IndexerFilterExpr) => {
     };
 };
 
-type IndexerFilterExpr = {
-    file: string;
-    sheet: string;
-    key: string;
-    filter: string;
-};
-
-type ParsedFilter = {
-    key: string;
-    literal?: string | number;
-    refer?: string;
-    resolveFromCell?: ReturnType<typeof parseResolver>;
-    source: string;
-};
-
 const parseFilter = (ctx: Context, expr: IndexerFilterExpr) => {
     const workbook = ctx.get(expr.file);
     const findField = (name: string) => {
@@ -219,7 +162,7 @@ const parseFilter = (ctx: Context, expr: IndexerFilterExpr) => {
         }) as readonly ParsedFilter[];
 };
 
-const resolveFilterValue = (
+export const resolveFilterValue = (
     entry: ParsedFilter,
     row: TRow,
     cellValue: TValue,
@@ -261,7 +204,11 @@ const resolveFilterValue = (
     return entry.literal;
 };
 
-const parseIndexerAst = (ctx: Context, rowExpr: IndexerFilterExpr, colExpr: IndexerFilterExpr) => {
+export const parseIndexerAst = (
+    ctx: Context,
+    rowExpr: IndexerFilterExpr,
+    colExpr: IndexerFilterExpr
+) => {
     return {
         value: {
             key: rowExpr.key,
@@ -272,134 +219,5 @@ const parseIndexerAst = (ctx: Context, rowExpr: IndexerFilterExpr, colExpr: Inde
             key: colExpr.key,
             filter: parseFilter(ctx, colExpr),
         },
-    };
-};
-
-export const IndexCheckerParser: CheckerParser = (
-    ctx,
-    rowFile,
-    rowSheet,
-    rowKey,
-    rowFilter,
-    colFile,
-    colSheet,
-    colKey,
-    colFilter
-) => {
-    const ast = parseIndexerAst(
-        ctx,
-        {
-            file: rowFile,
-            sheet: rowSheet,
-            key: rowKey,
-            filter: rowFilter,
-        },
-        {
-            file: colFile,
-            sheet: colSheet,
-            key: colKey,
-            filter: colFilter,
-        }
-    );
-    const filter: RowFilter[] = ast.target.filter.map((entry) => {
-        return { key: entry.key, value: "" };
-    });
-
-    const indexer = new ColumnIndexer(ctx, colFile, colSheet, ast.target.key);
-
-    return ({ cell, row, field, errors, workbook, sheet }) => {
-        if (cell.v === null || cell.v === undefined) {
-            throw new Error(`Invalid value at ${cell.r} in ${workbook.path}#${sheet.name}`);
-        }
-
-        if (ast.value.filter.length > 0) {
-            // skip cell if not match any filter
-            for (const entry of ast.value.filter) {
-                const rowCell = row[entry.key] as TCell | undefined;
-                if (!rowCell) {
-                    throw new Error(
-                        `field '${entry.key}' not found in ${workbook.path}#${sheet.name}`
-                    );
-                }
-                const value = resolveFilterValue(entry, row, cell.v, errors);
-                if (value === undefined) {
-                    return false;
-                }
-                if (rowCell.v !== value) {
-                    return true;
-                }
-            }
-        }
-
-        return ast.value.resolve(cell.v, errors, (value) => {
-            if (ast.target.filter.length === 0) {
-                return indexer.has(value);
-            }
-
-            let i = 0;
-            for (const entry of ast.target.filter) {
-                const filterValue = resolveFilterValue(entry, row, cell.v, errors);
-                if (filterValue === undefined) {
-                    return false;
-                }
-                filter[i++].value = filterValue;
-            }
-
-            return indexer.has(value, filter);
-        });
-    };
-};
-
-export const SheetCheckerParser: CheckerParser = (
-    ctx,
-    rowFile,
-    rowSheet,
-    rowKey,
-    rowFilter,
-    file
-) => {
-    const ast = parseIndexerAst(
-        ctx,
-        { file: rowFile, sheet: rowSheet, key: rowKey, filter: rowFilter },
-        { file: file, sheet: "", key: "", filter: "" }
-    );
-    const path = file.replace(/\.xlsx$/, "") + ".xlsx";
-    const target = ctx.get(path);
-    return ({ cell, errors }) => {
-        return ast.value.resolve(cell.v, errors, (value) => {
-            const sheet = target.get(value as string);
-            return sheet !== undefined;
-        });
-    };
-};
-
-export const ReferCheckerParser: CheckerParser = (ctx, arg) => {
-    return ({ cell, row, field, errors }) => {
-        return true;
-    };
-};
-
-export const UniqueCheckerParser: CheckerParser = (ctx, arg) => {
-    let columnIndex: ColumnIndexer | undefined;
-    return ({ cell, row, field, errors, workbook, sheet }) => {
-        if (!columnIndex) {
-            columnIndex = new ColumnIndexer(ctx, workbook.path, sheet.name, field.name);
-        }
-        if (typeof cell.v !== "string" && typeof cell.v !== "number") {
-            errors.push(`data type error: type=${typeof cell.v}`);
-            return false;
-        }
-        const arr = columnIndex.get(cell.v);
-        if (arr.length > 1) {
-            for (const item of arr) {
-                const otherCell = item[field.name] as TCell;
-                if (item[field.name] !== cell) {
-                    errors.push(`unique error: location=${otherCell.r}`);
-                }
-            }
-            return false;
-        } else {
-            return true;
-        }
     };
 };

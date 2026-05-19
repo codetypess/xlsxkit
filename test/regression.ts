@@ -3,11 +3,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as xlsx from "../index";
-import {
-    ExprCheckerParser,
-    IndexCheckerParser,
-    SheetCheckerParser,
-} from "../src/builtins/checkers";
+import { ExprCheckerParser } from "../src/checkers/expr";
+import { IndexCheckerParser } from "../src/checkers/index-checker";
+import { SheetCheckerParser } from "../src/checkers/sheet";
 import type { CheckerType } from "../src/core/contracts";
 import { parseChecker } from "../src/core/parser";
 import { performChecker, resolveChecker } from "../src/core/pipeline";
@@ -336,7 +334,7 @@ export interface CustomExtra {
 
         mergeTypeFile(autoPath, mergedPath);
         const merged = fs.readFileSync(mergedPath, "utf-8");
-        assert.match(merged, /import type\s*\{\s*ExtraType,\s*\}\s*from "\.\/extra\";/);
+        assert.match(merged, /import type\s*\{\s*ExtraType,\s*\}\s*from "\.\/extra";/);
         assert.match(merged, /BarType/);
         assert.match(merged, /readonly args: Record<string, number \| string>; \/\/ override/);
         assert.match(merged, /readonly optional\?: FooType;/);

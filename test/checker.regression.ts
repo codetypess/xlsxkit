@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
 import * as xlsx from "../index";
-import {
-    ExprCheckerParser,
-    FollowCheckerParser,
-    IndexCheckerParser,
-    RangeCheckerParser,
-    ReferCheckerParser,
-    SheetCheckerParser,
-    SizeCheckerParser,
-    UniqueCheckerParser,
-} from "../src/builtins/checkers";
+import { ExprCheckerParser } from "../src/checkers/expr";
+import { FollowCheckerParser } from "../src/checkers/follow";
+import { IndexCheckerParser } from "../src/checkers/index-checker";
+import { RangeCheckerParser } from "../src/checkers/range";
+import { ReferCheckerParser } from "../src/checkers/refer";
+import { SheetCheckerParser } from "../src/checkers/sheet";
+import { SizeCheckerParser } from "../src/checkers/size";
+import { UniqueCheckerParser } from "../src/checkers/unique";
 import type { CheckerType } from "../src/core/contracts";
 import { loadBody, parseChecker } from "../src/core/parser";
 import { performChecker, resolveChecker } from "../src/core/pipeline";
