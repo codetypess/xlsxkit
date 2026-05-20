@@ -1,3 +1,4 @@
+import { removeLastArraySuffix, splitTupleTypename, splitTypename } from "../typename";
 import { error } from "./errors";
 import { converters } from "./registry";
 import { Type, type TCell, type TValue } from "./schema";
@@ -52,8 +53,8 @@ const tokenizeArray = (str: string) => {
 };
 
 const convertArray = (str: string, typename: string) => {
-    const len = Number(typename.match(/\[(\d+)\]/)?.[1]);
-    const itemType = typename.replace(/\[\d*\]/, "");
+    const len = Number(typename.match(/\[(\d+)\]$/)?.[1]);
+    const itemType = removeLastArraySuffix(typename);
     const tokens = tokenizeArray(str);
     const result = tokens.map((s) => convertValue(s, itemType));
     if (!isNaN(len) && result.length !== len) {
@@ -62,22 +63,53 @@ const convertArray = (str: string, typename: string) => {
     return result;
 };
 
-export function convertValue(cell: TCell, typename: string): TCell;
-export function convertValue(value: string, typename: string): TValue;
-export function convertValue(cell: TCell | string, typename: string) {
-    const converter = converters[typename.match(/^\w+/)?.[0] ?? ""];
+const convertTuple = (str: string, typename: string) => {
+    const tuple = splitTupleTypename(typename);
+    if (tuple.length === 0) {
+        return null;
+    }
+    const tokens = tokenizeArray(str);
+    if (tokens.length !== tuple.length) {
+        error(`Tuple length mismatch: required ${tuple.length}, but got ${tokens.length}`);
+    }
+    return tuple.map((member, index) => convertValue(tokens[index]!, member));
+};
+
+const convertScalar = (str: string, typename: string): TValue => {
+    const tuple = splitTupleTypename(typename);
+    if (tuple.length > 0) {
+        try {
+            return convertTuple(str, typename);
+        } catch {
+            return null;
+        }
+    }
+
+    const base = splitTypename(typename).base;
+    const converter = converters[base.match(/^\w+/)?.[0] ?? ""];
     if (!converter) {
         error(`Converter not found: '${typename}'`);
     }
 
-    const rawtypename = typename.replace("?", "");
+    try {
+        return converter(str) ?? null;
+    } catch {
+        return null;
+    }
+};
+
+export function convertValue(cell: TCell, typename: string): TCell;
+export function convertValue(value: string, typename: string): TValue;
+export function convertValue(cell: TCell | string, typename: string) {
+    const meta = splitTypename(typename);
+    const rawtypename = meta.optional ? typename.slice(0, -1) : typename;
     let v = typeof cell === "string" ? cell : cell.v;
 
     if (typeof cell !== "string" && cell.t?.replace("?", "") === rawtypename) {
         return cell;
     }
 
-    if (typename.includes("?") && (v === "" || v === null)) {
+    if (meta.optional && (v === "" || v === null)) {
         if (typeof cell === "string") {
             return null;
         } else {
@@ -95,14 +127,14 @@ export function convertValue(cell: TCell | string, typename: string) {
 
     let result: TValue = null;
 
-    try {
-        if (typename.includes("[")) {
+    if (meta.array) {
+        try {
             result = convertArray(v, rawtypename);
-        } else {
-            result = converter(v) ?? null;
+        } catch {
+            /** keep the public error contract on array conversion failures */
         }
-    } catch {
-        /** ignore */
+    } else {
+        result = convertScalar(v, rawtypename);
     }
 
     if (result === null) {

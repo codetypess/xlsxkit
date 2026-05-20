@@ -5,6 +5,7 @@ import { converters, registerType } from "./core/registry";
 import { type Sheet, type TObject } from "./core/schema";
 import { type Context, Workbook } from "./core/workbook";
 import { StringBuffer } from "./stringify";
+import { splitTupleTypename, splitTypename } from "./typename";
 import { toPascalCase } from "./util";
 
 export type TypedefLiteral = string | number;
@@ -55,17 +56,166 @@ const typedefOwners = new Map<string, TypedefOwner>();
 const typedefCheckerPresence = new Map<string, boolean>();
 
 const basicTypes = ["string", "number", "boolean", "unknown", "object"];
+const emptyTypes = new Set<string>();
 
-export const splitTypename = (typename: string) => {
-    const optional = typename.endsWith("?");
-    const clean = optional ? typename.slice(0, -1) : typename;
-    const array = clean.match(/(?:\[\d*\])+$/)?.[0].replace(/\d+/g, "") ?? "";
-    const base = clean.slice(0, clean.length - array.length);
+export { splitTypename } from "./typename";
+
+const applyTsArraySuffix = (type: string, array: string, readonlyArray: boolean) => {
+    if (!array) {
+        return type;
+    }
+    const depth = array.length / 2;
+    const wrap = /[|&]/.test(type) ? `(${type})` : type;
+    let result = readonlyArray ? `readonly ${wrap}[]` : `${wrap}[]`;
+    for (let i = 1; i < depth; i++) {
+        result = readonlyArray ? `readonly (${result})[]` : `(${result})[]`;
+    }
+    return result;
+};
+
+const applyLuaArraySuffix = (type: string, array: string) => {
+    if (!array) {
+        return type;
+    }
+    return `${type.includes("|") ? `(${type})` : type}${array}`;
+};
+
+function resolveTsType(
+    typename: string,
+    localTypes: ReadonlySet<string>,
+    importer: TypeImporter,
+    readonlyArray = false
+) {
+    const meta = splitTypename(typename);
+    const result = applyTsArraySuffix(
+        resolveTsBaseType(meta.base, localTypes, importer),
+        meta.array,
+        readonlyArray
+    );
     return {
-        base,
-        array,
-        optional,
+        type: result,
+        optional: meta.optional,
     };
+}
+
+function resolveTsBaseType(
+    base: string,
+    localTypes: ReadonlySet<string>,
+    importer: TypeImporter
+): string {
+    const tuple = splitTupleTypename(base);
+    if (tuple.length > 0) {
+        const members = tuple.map((member) => {
+            const resolved = resolveTsType(member, localTypes, importer);
+            return resolved.optional ? `${resolved.type} | null` : resolved.type;
+        });
+        return `[${members.join(", ")}]`;
+    }
+    if (base.startsWith("#")) {
+        return stringifyLiteral(tryParseLiteral(base) ?? base.slice(1));
+    }
+    if (base === "int" || base === "float" || base === "auto") {
+        return "number";
+    }
+    if (base === "string") {
+        return "string";
+    }
+    if (base === "bool") {
+        return "boolean";
+    }
+    if (
+        base.startsWith("json") ||
+        base.startsWith("table") ||
+        base.startsWith("unknown") ||
+        base.startsWith("@")
+    ) {
+        return "unknown";
+    }
+    if (localTypes.has(base)) {
+        return base;
+    }
+    return importer.resolve(base).type;
+}
+
+function resolveLuaType(
+    typename: string,
+    localTypes: ReadonlySet<string>,
+    resolver: TypeResolver,
+    atAsTable = false
+) {
+    const meta = splitTypename(typename);
+    const result = applyLuaArraySuffix(
+        resolveLuaBaseType(meta.base, localTypes, resolver, atAsTable),
+        meta.array
+    );
+    return {
+        type: result,
+        optional: meta.optional,
+    };
+}
+
+function resolveLuaBaseType(
+    base: string,
+    localTypes: ReadonlySet<string>,
+    resolver: TypeResolver,
+    atAsTable: boolean
+): string {
+    const tuple = splitTupleTypename(base);
+    if (tuple.length > 0) {
+        return "table";
+    }
+    if (base.startsWith("#")) {
+        return stringifyLiteral(tryParseLiteral(base) ?? base.slice(1));
+    }
+    if (base === "int" || base === "auto") {
+        return "integer";
+    }
+    if (base === "float") {
+        return "number";
+    }
+    if (base === "string") {
+        return "string";
+    }
+    if (base.startsWith("@")) {
+        return atAsTable ? "table" : "string";
+    }
+    if (base === "bool") {
+        return "boolean";
+    }
+    if (base.startsWith("json") || base.startsWith("table") || base.startsWith("unknown")) {
+        return "table";
+    }
+    if (localTypes.has(base)) {
+        return base;
+    }
+    return resolver(base).type;
+}
+
+const ensureRuntimeTypeSupported = (typename: string, where: string) => {
+    const meta = splitTypename(typename);
+    const tuple = splitTupleTypename(meta.base);
+    if (tuple.length > 0) {
+        tuple.forEach((member) => ensureRuntimeTypeSupported(member, where));
+        return;
+    }
+
+    if (
+        meta.base.startsWith("@") ||
+        meta.base === "int" ||
+        meta.base === "float" ||
+        meta.base === "auto" ||
+        meta.base === "string" ||
+        meta.base === "bool" ||
+        meta.base.startsWith("json") ||
+        meta.base.startsWith("table") ||
+        meta.base.startsWith("unknown")
+    ) {
+        return;
+    }
+
+    if (!converters[meta.base]) {
+        throw new Error(`converter not found: ${meta.base} (${where})`);
+    }
 };
 
 const tryParseLiteral = (typename: string): TypedefLiteral | null => {
@@ -241,7 +391,9 @@ const resolveUnionMembers = (union: TypedefUnion) => {
             !!objectType && objectType.kind === "object",
             `Typedef union '${union.name}' member '${member}' must be an object type`
         );
-        const discriminatorField = objectType.fields.find((field) => field.name === union.discriminator);
+        const discriminatorField = objectType.fields.find(
+            (field) => field.name === union.discriminator
+        );
         assert(
             !!discriminatorField?.literal,
             `Typedef union '${union.name}' member '${member}' must define ` +
@@ -256,7 +408,10 @@ export const resolveTypedefObject = (type: TypedefEntry, raw: unknown) => {
     if (type.kind === "object") {
         return type;
     }
-    assert(!!raw && typeof raw === "object" && !Array.isArray(raw), `Typedef '${type.name}' expects an object`);
+    assert(
+        !!raw && typeof raw === "object" && !Array.isArray(raw),
+        `Typedef '${type.name}' expects an object`
+    );
     const source = raw as Record<string, unknown>;
     const member = resolveUnionMembers(type).get(
         makeLiteralKey(source[type.discriminator] as TypedefLiteral)
@@ -375,37 +530,15 @@ const writeTsRowType = (
             ` * ${comment} (location: ${field.location}) (checker: ${checker || "x"})`
         );
         typeBuffer.writeLine(` */`);
-        let typename = field.realtype ?? field.typename;
-        const optional = typename.endsWith("?") ? "?" : "";
-        const array = typename.match(/\[.*\]/)?.[0].replace(/\d+/g, "") ?? "";
-        typename = typename.match(/^[\w@]+/)?.[0] ?? "";
-        let tsType: string;
-        if (typename === "int" || typename === "float" || typename === "auto") {
-            tsType = `number`;
-        } else if (typename === "string") {
-            tsType = `string`;
-        } else if (typename === "bool") {
-            tsType = `boolean`;
-        } else if (
-            typename.startsWith("json") ||
-            typename.startsWith("table") ||
-            typename.startsWith("unknown") ||
-            typename.startsWith("@")
-        ) {
-            tsType = `unknown`;
-        } else {
-            tsType = typeImporter.resolve(typename).type;
-        }
+        const resolved = resolveTsType(
+            field.realtype ?? field.typename,
+            emptyTypes,
+            typeImporter,
+            true
+        );
         typeBuffer.padding();
-        typeBuffer.writeString(`readonly ${field.name}${optional}: `);
-        if (array) {
-            const deepCount = array.length / 2;
-            tsType = `readonly ${tsType}[]`;
-            for (let i = 1; i < deepCount; i++) {
-                tsType = `readonly (${tsType})[]`;
-            }
-        }
-        typeBuffer.writeString(`${tsType};`);
+        typeBuffer.writeString(`readonly ${field.name}${resolved.optional ? "?" : ""}: `);
+        typeBuffer.writeString(`${resolved.type};`);
         typeBuffer.linefeed();
     }
     typeBuffer.unindent();
@@ -466,25 +599,11 @@ export const genLuaType = (workbook: Workbook, resolver: TypeResolver) => {
         buffer.writeLine(`---file: ${workbook.path}`);
         buffer.writeLine(`---@class ${className}`);
         for (const field of sheet.fields.filter((f) => !f.ignore)) {
-            const optional = field.typename.endsWith("?") ? "?" : "";
-            const array = field.typename.match(/\[.*\]/g)?.[0].replace(/\d+/g, "") ?? "";
-            let typename = field.typename.match(/^[\w@]+/)?.[0] ?? "";
-            typename = typename.startsWith("@") ? "table" : typename;
             const comment = field.comment.replaceAll(/[\r\n]+/g, " ");
-            if (typename === "int" || typename === "auto") {
-                buffer.writeLine(`---@field ${field.name}${optional} integer${array} ${comment}`);
-            } else if (typename === "float") {
-                buffer.writeLine(`---@field ${field.name}${optional} number${array} ${comment}`);
-            } else if (typename === "string" || typename.startsWith("@")) {
-                buffer.writeLine(`---@field ${field.name}${optional} string${array} ${comment}`);
-            } else if (typename === "bool") {
-                buffer.writeLine(`---@field ${field.name}${optional} boolean${array} ${comment}`);
-            } else {
-                const ret = resolver(typename);
-                buffer.writeLine(
-                    `---@field ${field.name}${optional} ${ret.type}${array} ${comment}`
-                );
-            }
+            const resolved = resolveLuaType(field.typename, emptyTypes, resolver, true);
+            buffer.writeLine(
+                `---@field ${field.name}${resolved.optional ? "?" : ""} ${resolved.type} ${comment}`
+            );
         }
         buffer.writeLine("");
     }
@@ -502,83 +621,6 @@ const resolveTypedefWorkbook = (value: Workbook | TypedefWorkbook) => {
         return value;
     }
     return getTypedefWorkbook(value);
-};
-
-const resolveTsTypedefType = (
-    typename: string,
-    localTypes: ReadonlySet<string>,
-    importer: TypeImporter
-) => {
-    const meta = splitTypename(typename);
-    let result: string;
-    if (meta.base.startsWith("#")) {
-        result = stringifyLiteral(tryParseLiteral(meta.base) ?? meta.base.slice(1));
-    } else if (meta.base === "int" || meta.base === "float" || meta.base === "auto") {
-        result = "number";
-    } else if (meta.base === "string") {
-        result = "string";
-    } else if (meta.base === "bool") {
-        result = "boolean";
-    } else if (
-        meta.base.startsWith("json") ||
-        meta.base.startsWith("table") ||
-        meta.base.startsWith("unknown") ||
-        meta.base.startsWith("@")
-    ) {
-        result = "unknown";
-    } else if (localTypes.has(meta.base)) {
-        result = meta.base;
-    } else {
-        result = importer.resolve(meta.base).type;
-    }
-
-    if (meta.array) {
-        const depth = meta.array.length / 2;
-        result = `${result}[]`;
-        for (let i = 1; i < depth; i++) {
-            result = `(${result})[]`;
-        }
-    }
-
-    return {
-        type: result,
-        optional: meta.optional,
-    };
-};
-
-const resolveLuaTypedefType = (
-    typename: string,
-    localTypes: ReadonlySet<string>,
-    resolver: TypeResolver
-) => {
-    const meta = splitTypename(typename);
-    let result: string;
-    if (meta.base.startsWith("#")) {
-        result = stringifyLiteral(tryParseLiteral(meta.base) ?? meta.base.slice(1));
-    } else if (meta.base === "int" || meta.base === "auto") {
-        result = "integer";
-    } else if (meta.base === "float") {
-        result = "number";
-    } else if (meta.base === "string" || meta.base.startsWith("@")) {
-        result = "string";
-    } else if (meta.base === "bool") {
-        result = "boolean";
-    } else if (
-        meta.base.startsWith("json") ||
-        meta.base.startsWith("table") ||
-        meta.base.startsWith("unknown")
-    ) {
-        result = "table";
-    } else if (localTypes.has(meta.base)) {
-        result = meta.base;
-    } else {
-        result = resolver(meta.base).type;
-    }
-
-    return {
-        type: `${result}${meta.array}`,
-        optional: meta.optional,
-    };
 };
 
 export const genTsTypedef = (
@@ -621,7 +663,7 @@ export const genTsTypedef = (
             if (field.comment) {
                 typeBuffer.writeLine(`/** ${field.comment} */`);
             }
-            const resolved = resolveTsTypedefType(field.type, localTypes, importer);
+            const resolved = resolveTsType(field.type, localTypes, importer);
             typeBuffer.writeLine(`${field.name}${resolved.optional ? "?" : ""}: ${resolved.type};`);
         }
         typeBuffer.unindent();
@@ -668,7 +710,7 @@ export const genLuaTypedef = (
 
         buffer.writeLine(`---@class ${type.name}`);
         for (const field of type.fields) {
-            const resolved = resolveLuaTypedefType(field.type, localTypes, resolver);
+            const resolved = resolveLuaType(field.type, localTypes, resolver);
             buffer.writeLine(
                 `---@field ${field.name}${resolved.optional ? "?" : ""} ${resolved.type}` +
                     (field.comment ? ` ${field.comment}` : "")
@@ -713,16 +755,10 @@ export const genXlsxType = (ctx: Context, resolver: TypeResolver) => {
                     continue;
                 }
                 const checker = field.checkers.map((v) => v.source).join(";");
-                const optional = field.typename.endsWith("?") ? "?" : "";
                 const comment = field.comment.replaceAll(/[\r\n]+/g, " ");
-                const array = field.typename.match(/\[.*\]/g)?.[0].replace(/\d+/g, "") ?? "";
-                let typename = field.typename.match(/^[\w@]+/)?.[0] ?? "";
-                if (typename.startsWith("@")) {
-                    typename = "unknown";
-                } else if (!converters[typename]) {
-                    const where = `file: ${workbook.path}#${sheet.name}#${field.location}:${field.name}`;
-                    throw new Error(`converter not found: ${typename} (${where})`);
-                }
+                const where = `file: ${workbook.path}#${sheet.name}#${field.location}:${field.name}`;
+                const resolved = resolveTsType(field.typename, emptyTypes, typeImporter);
+                ensureRuntimeTypeSupported(field.typename, where);
                 typeBuffer.writeLine(`/**`);
                 typeBuffer.writeLine(
                     ` * ${comment} (location: ${field.location}) (type: ${field.typename}) ` +
@@ -731,25 +767,8 @@ export const genXlsxType = (ctx: Context, resolver: TypeResolver) => {
                 );
                 typeBuffer.writeLine(` */`);
                 typeBuffer.padding();
-                typeBuffer.writeString(`${field.name}: { v${optional}: `);
-                if (typename === "int" || typename === "float" || typename === "auto") {
-                    typeBuffer.writeString(`number`);
-                } else if (typename === "string") {
-                    typeBuffer.writeString(`string`);
-                } else if (typename === "bool") {
-                    typeBuffer.writeString(`boolean`);
-                } else if (
-                    typename.startsWith("json") ||
-                    typename.startsWith("table") ||
-                    typename.startsWith("unknown") ||
-                    typename.startsWith("@")
-                ) {
-                    typeBuffer.writeString(`unknown`);
-                } else {
-                    const ret = typeImporter.resolve(typename);
-                    typeBuffer.writeString(`${ret.type}`);
-                }
-                typeBuffer.writeString(`${array} } & TCell;`);
+                typeBuffer.writeString(`${field.name}: { v${resolved.optional ? "?" : ""}: `);
+                typeBuffer.writeString(`${resolved.type} } & TCell;`);
                 typeBuffer.linefeed();
             }
             typeBuffer.unindent();

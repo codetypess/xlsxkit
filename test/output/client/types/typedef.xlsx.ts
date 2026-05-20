@@ -29,6 +29,10 @@ export interface GeneratedTypedefMainRow {
      * 参数 (location: D1) (checker: x)
      */
     readonly args: TaskArgs;
+    /**
+     * 数据 (location: E1) (checker: x)
+     */
+    readonly data?: readonly [number, number][];
 }
 
 export interface GeneratedTypedefTable {

@@ -11,6 +11,7 @@ import {
     TypedefUnion,
     TypedefWorkbook,
 } from "../typedef";
+import { splitTypename } from "../typename";
 import { values } from "../util";
 
 type TypedefDraftField = {
@@ -37,18 +38,6 @@ type TypedefDraftUnion = {
 };
 
 type TypedefDraft = TypedefDraftObject | TypedefDraftUnion;
-
-const splitTypename = (typename: string) => {
-    const optional = typename.endsWith("?");
-    const clean = optional ? typename.slice(0, -1) : typename;
-    const array = clean.match(/(?:\[\d*\])+$/)?.[0].replace(/\d+/g, "") ?? "";
-    const base = clean.slice(0, clean.length - array.length);
-    return {
-        base,
-        array,
-        optional,
-    };
-};
 
 const tryParseLiteral = (typename: string) => {
     if (!typename.startsWith("#")) {

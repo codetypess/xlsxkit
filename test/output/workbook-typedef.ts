@@ -580,6 +580,10 @@ export interface TypedefMainRow {
      * 参数 (location: D1) (type: TaskArgs) (checker: x) (writer: client|server)
      */
     args: { v: TaskArgs } & TCell;
+    /**
+     * 数据 (location: E1) (type: [float, int][]?) (checker: x) (writer: client|server)
+     */
+    data: { v?: [number, number][] } & TCell;
 }
 
 // file: test/res/typedef.xlsx

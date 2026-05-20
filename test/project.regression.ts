@@ -282,6 +282,11 @@ const runStringifyAndIndexerTests = () => {
     const sameCell = makeCell(9, "int", "A1");
     assert.equal(xlsx.convertValue(sameCell, "int"), sameCell);
     assert.deepEqual(xlsx.convertValue("[1, 2, 3]", "int[]"), [1, 2, 3]);
+    assert.deepEqual(xlsx.convertValue("[1, 2.5]", "[int,float]"), [1, 2.5]);
+    assert.deepEqual(xlsx.convertValue("[[1, 2.5], [3, 4.75]]", "[int,float][]"), [
+        [1, 2.5],
+        [3, 4.75],
+    ]);
     assert.equal(xlsx.convertValue(makeCell("", "string?", "A2"), "int?").v, null);
     assert.equal(xlsx.convertValue("1", "bool"), true);
     assert.equal(xlsx.convertValue("x", "bool"), false);
@@ -417,6 +422,50 @@ const runStringifyAndIndexerTests = () => {
         generated,
         /return createRowIndexer\(ctx, "catalog\.xlsx", sheet, filter as Filter<unknown>\);/
     );
+
+    const tupleCtx = new xlsx.Context("project-regression", "tuple-type-output");
+    const tupleWorkbook = new xlsx.Workbook(tupleCtx, "test/regression/tuple-type.xlsx");
+    tupleCtx.add(tupleWorkbook);
+    tupleWorkbook.add(makeSheet("main", [{ name: "values", typename: "[int,float][]" }]));
+
+    const tupleTs = xlsx.genTsType(tupleWorkbook, (typename) => {
+        return { type: typename, path: "./generated-types" };
+    });
+    assert.match(tupleTs, /readonly values: readonly \[number, number\]\[\];/);
+
+    const tupleLua = xlsx.genLuaType(tupleWorkbook, (typename) => ({ type: typename }));
+    assert.match(tupleLua, /---@field values table\[\]/);
+
+    const tupleXlsx = xlsx.genXlsxType(tupleCtx, (typename) => {
+        return { type: typename, path: "./generated-types" };
+    });
+    assert.match(tupleXlsx, /values: \{ v: \[number, number\]\[\] \} & TCell;/);
+
+    const tupleTypedef = {
+        path: "test/regression/tuple-type.xlsx",
+        sheet: "typedef",
+        types: [
+            {
+                kind: "object",
+                name: "TupleArrayArgs",
+                comment: "",
+                fields: [
+                    {
+                        name: "values",
+                        comment: "",
+                        rawType: "[int,float][]",
+                        type: "[int,float][]",
+                    },
+                ],
+            },
+        ],
+    } satisfies xlsx.TypedefWorkbook;
+
+    const tupleTypedefTs = xlsx.genTsTypedef(tupleTypedef);
+    assert.match(tupleTypedefTs, /values: \[number, number\]\[\];/);
+
+    const tupleTypedefLua = xlsx.genLuaTypedef(tupleTypedef);
+    assert.match(tupleTypedefLua, /---@field values table\[\]/);
 };
 
 const runTsToZodTests = async () => {

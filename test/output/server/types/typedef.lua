@@ -10,4 +10,5 @@
 ---@field id integer ###
 ---@field condition string 条件
 ---@field args TaskArgs 参数
+---@field data? table[] 数据
 
