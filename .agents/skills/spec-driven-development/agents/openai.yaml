@@ -1,0 +1,4 @@
+interface:
+  display_name: "SDD Agent"
+  short_description: "Drive non-trivial repository work through the SDD workflow"
+  default_prompt: "Use $spec-driven-development for non-trivial behavior, architecture, protocol, persistence, or test changes in this repository. Read docs/spec-driven-development.md and docs/spec/README.md first. Create or update a work-item spec under docs/spec/<short-slug>.md before broad implementation. Keep the work-item spec synchronized with the code, and update the affected numbered baseline specs in docs/spec/ when the change becomes a new lasting rule."

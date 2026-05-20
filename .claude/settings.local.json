@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git diff *)",
+      "Bash(git ls-tree *)",
+      "Bash(sort -k4 -nr)",
+      "Bash(git -C \"D:/Users/bite/Desktop/github/vscode-behavior3\" status --short)",
+      "Bash(git -C \"D:/Users/bite/Desktop/github/vscode-behavior3\" log --oneline -5)",
+      "Bash(git -C /d/Users/bite/Desktop/github/vscode-behavior3 status --short)",
+      "Bash(git -C /d/Users/bite/Desktop/github/vscode-behavior3 diff --stat 3f72f596cc41cb2fff5f497c68277b493ae6191a -- src)",
+      "Bash(git *)"
+    ]
+  }
+}
